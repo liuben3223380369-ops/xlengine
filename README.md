@@ -1413,3 +1413,5 @@ out/             示例图表、xlsx、PDF
 
 修复记录：上传脚本曾把 dist/ 下的 CI 成品从 tree 里排除（等于删除），
 现改为按 blob sha 接回 tree。
+
+验证通过：上传脚本已按 blob sha 接回 dist/ 成品，后续提交不会再删除。
