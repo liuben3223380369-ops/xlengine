@@ -2,10 +2,18 @@
 *.o
 *.d
 
-# 主程序与构建产物
+# 主程序与构建中间产物
 /xl
-/dist/
 *.exe
+*.apk
+
+# 但 dist/ 下的**最终成品**要提交（CI 构建好的 EXE / APK 会推回仓库）
+# 注意必须写 /dist/* 而不是 /dist/ —— 目录整体被忽略时，子文件的否定规则
+# 不会生效，git 压根不会进去检查。
+/dist/*
+!/dist/*.exe
+!/dist/*.apk
+!/dist/README.md
 
 # 测试二进制（无扩展名，需显式列出）
 /tests/auditt

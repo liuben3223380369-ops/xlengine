@@ -91,3 +91,19 @@ jobs:
         with:
           files: android/app/build/outputs/apk/debug/*.apk
           generate_release_notes: true
+
+      - name: 把成品推回仓库
+        # 与 EXE 同理：Artifacts 会过期，推回仓库才能"克隆即有"。
+        # 改名为 xlengine.apk 后再提交，避免 app-debug.apk 这种构建期命名。
+        if: github.event_name != 'pull_request'
+        run: |
+          git config user.name "ci-bot"
+          git config user.email "ci-bot@example.com"
+          mkdir -p dist
+          cp android/app/build/outputs/apk/debug/app-debug.apk dist/xlengine.apk
+          ls -la dist/
+          git add -f dist/xlengine.apk
+          git diff --cached --quiet && echo "成品无变化，跳过提交" && exit 0
+          git commit -m "CI: 更新 Android APK [skip ci]"
+          git pull --rebase origin main
+          git push origin HEAD:main
