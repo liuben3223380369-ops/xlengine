@@ -797,10 +797,20 @@ LO 其实答对的（如 `SUMIF(...,{10,20,30,40})`）不会被差异表掩盖�
 
 | 工作流 | 运行环境 | 产物 | 体积 |
 |---|---|---|---|
-| `build-exe.yml` | ubuntu-latest + mingw-w64 | `xlengine-windows-x64`（EXE） | 约 1.2 MB |
-| `build-apk.yml` | ubuntu-latest + Android NDK | `xlengine-android-apk`（APK） | 约 10.3 MB |
+| `build-exe.yml` | ubuntu-latest + mingw-w64 | `dist/xlengine.exe` | 3.0 MB |
+| `build-apk.yml` | ubuntu-latest + Android NDK | `dist/xlengine.apk` | 13.7 MB |
 
-打 tag（`v*`）时会自动挂到 Release 上。产物在 Actions 运行页的 **Artifacts** 区下载。
+**成品就在仓库的 `dist/` 目录里**——CI 构建完会自动提交回去，克隆下来直接用，
+不用去 Actions 页面翻 Artifacts（那个有保存期限）。
+
+```
+https://github.com/liuben3223380369-ops/xlengine/raw/main/dist/xlengine.exe
+https://github.com/liuben3223380369-ops/xlengine/raw/main/dist/xlengine.apk
+```
+
+打 tag（`v*`）时还会额外挂一份到 Release 上。
+
+APK 只编 `arm64-v8a`：三架构的 debug 包有 53 MB，塞进 git 仓库太占地方。
 
 ### Android 侧的适配
 
