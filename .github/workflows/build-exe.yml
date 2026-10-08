@@ -78,6 +78,17 @@ jobs:
           path: dist/*.exe
           if-no-files-found: error
 
+      - name: 回传推送日志
+        if: always()
+        run: |
+          git config user.name "ci-bot"
+          git config user.email "ci-bot@example.com"
+          mkdir -p ci-logs
+          cp push.log ci-logs/push.log 2>/dev/null || echo "无 push.log"
+          git add -f ci-logs/push.log
+          git commit -m "CI 日志: push run ${{ github.run_id }}" || echo "无变化"
+          git push -f origin HEAD:ci-logs-exe || echo "推送失败"
+
       - name: 打 tag 时发布到 Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
@@ -94,6 +105,8 @@ jobs:
         # commit message 带 [skip ci]，否则这次 push 会再次触发本工作流。
         if: github.event_name != 'pull_request'
         run: |
+          set -o pipefail
+          {
           git config user.name "ci-bot"
           git config user.email "ci-bot@example.com"
           git fetch origin main
@@ -108,3 +121,4 @@ jobs:
             echo "第 $i 次推送失败，重试"
             sleep 5
           done
+          } 2>&1 | tee push.log
