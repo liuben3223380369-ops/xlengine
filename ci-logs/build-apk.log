@@ -1,0 +1,417 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.5/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+Checking the license for package Android SDK Build-Tools 33.0.1 in /usr/local/lib/android/sdk/licenses
+License for package Android SDK Build-Tools 33.0.1 accepted.
+Preparing "Install Android SDK Build-Tools 33.0.1 v.33.0.1".
+"Install Android SDK Build-Tools 33.0.1 v.33.0.1" ready.
+Installing Android SDK Build-Tools 33.0.1 in /usr/local/lib/android/sdk/build-tools/33.0.1
+"Install Android SDK Build-Tools 33.0.1 v.33.0.1" complete.
+"Install Android SDK Build-Tools 33.0.1 v.33.0.1" finished.
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:javaPreCompileDebug
+> Task :app:generateDebugResValues
+> Task :app:checkDebugAarMetadata
+> Task :app:mapDebugSourceSetPaths
+> Task :app:generateDebugResources
+> Task :app:packageDebugResources
+> Task :app:mergeDebugResources
+> Task :app:createDebugCompatibleScreenManifests
+> Task :app:extractDeepLinksDebug
+> Task :app:parseDebugLocalResources
+> Task :app:processDebugMainManifest
+> Task :app:processDebugManifest
+> Task :app:mergeDebugShaders
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:processDebugManifestForPackage
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets
+> Task :app:compressDebugAssets
+> Task :app:desugarDebugFileDependencies
+> Task :app:processDebugJavaRes NO-SOURCE
+> Task :app:checkDebugDuplicateClasses
+> Task :app:mergeDebugJavaResource
+> Task :app:processDebugResources
+> Task :app:configureCMakeDebug[arm64-v8a]
+> Task :app:compileDebugJavaWithJavac
+> Task :app:dexBuilderDebug
+> Task :app:mergeExtDexDebug
+> Task :app:mergeLibDexDebug
+> Task :app:mergeDebugGlobalSynthetics
+> Task :app:mergeProjectDexDebug
+
+> Task :app:buildCMakeDebug[arm64-v8a]
+C/C++: ninja: Entering directory `/home/runner/work/xlengine/xlengine/android/app/.cxx/Debug/1k1c3s6c/arm64-v8a'
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:298:61: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value d = findFunction("BIN2DEC")->impl({a[0]}, *(EvalCtx*)nullptr);
+C/C++:                                                             ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:302:56: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("DEC2HEX")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                        ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:305:61: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value d = findFunction("BIN2DEC")->impl({a[0]}, *(EvalCtx*)nullptr);
+C/C++:                                                             ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:309:56: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("DEC2OCT")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                        ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:312:61: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value d = findFunction("OCT2DEC")->impl({a[0]}, *(EvalCtx*)nullptr);
+C/C++:                                                             ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:316:56: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("DEC2BIN")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                        ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:319:61: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value d = findFunction("OCT2DEC")->impl({a[0]}, *(EvalCtx*)nullptr);
+C/C++:                                                             ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:323:56: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("DEC2HEX")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                        ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:326:61: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value d = findFunction("HEX2DEC")->impl({a[0]}, *(EvalCtx*)nullptr);
+C/C++:                                                             ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:330:56: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("DEC2BIN")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                        ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:333:61: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value d = findFunction("HEX2DEC")->impl({a[0]}, *(EvalCtx*)nullptr);
+C/C++:                                                             ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:337:56: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("DEC2OCT")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                        ^~~~~~~~~~~~~~~~~~
+C/C++: 12 warnings generated.
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_fin.cpp:258:54: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value ip = findFunction("IPMT")->impl(a, *(EvalCtx*)nullptr);
+C/C++:                                                      ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_fin.cpp:705:63: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:                 Value pv = findFunction("PRICE")->impl(pArgs, *(EvalCtx*)nullptr);
+C/C++:                                                               ^~~~~~~~~~~~~~~~~~
+C/C++: 2 warnings generated.
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_more.cpp:271:57: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value d = findFunction("DURATION")->impl(a, *(EvalCtx*)nullptr);
+C/C++:                                                         ^~~~~~~~~~~~~~~~~~
+C/C++: 1 warning generated.
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat2.cpp:150:58: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value r = findFunction("LINEST")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                          ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat2.cpp:161:60: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value fit = findFunction("LINEST")->impl(base, *(EvalCtx*)nullptr);
+C/C++:                                                            ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat2.cpp:197:60: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value fit = findFunction("LOGEST")->impl(base, *(EvalCtx*)nullptr);
+C/C++:                                                            ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat2.cpp:407:61: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("LOGNORM.DIST")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                             ^~~~~~~~~~~~~~~~~~
+C/C++: 4 warnings generated.
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:188:56: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value sd = findFunction("STDEVA")->impl(a, *(EvalCtx*)nullptr);
+C/C++:                                                        ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:295:63: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("PERCENTILE.INC")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                               ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:301:63: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("PERCENTILE.EXC")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                               ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:372:55: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value r = findFunction("CORREL")->impl(a, *(EvalCtx*)nullptr);
+C/C++:                                                       ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:415:55: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value sl = findFunction("SLOPE")->impl(a, *(EvalCtx*)nullptr);
+C/C++:                                                       ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:420:66: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value sl = findFunction("SLOPE")->impl({a[1], a[2]}, *(EvalCtx*)nullptr);
+C/C++:                                                                  ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:422:70: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value ic = findFunction("INTERCEPT")->impl({a[1], a[2]}, *(EvalCtx*)nullptr);
+C/C++:                                                                      ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:434:55: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value sl = findFunction("SLOPE")->impl(a, *(EvalCtx*)nullptr);
+C/C++:                                                       ^~~~~~~~~~~~~~~~~~
+C/C++: 8 warnings generated.
+
+> Task :app:configureCMakeDebug[armeabi-v7a]
+
+> Task :app:buildCMakeDebug[armeabi-v7a]
+C/C++: ninja: Entering directory `/home/runner/work/xlengine/xlengine/android/app/.cxx/Debug/1k1c3s6c/armeabi-v7a'
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:298:61: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value d = findFunction("BIN2DEC")->impl({a[0]}, *(EvalCtx*)nullptr);
+C/C++:                                                             ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:302:56: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("DEC2HEX")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                        ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:305:61: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value d = findFunction("BIN2DEC")->impl({a[0]}, *(EvalCtx*)nullptr);
+C/C++:                                                             ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:309:56: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("DEC2OCT")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                        ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:312:61: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value d = findFunction("OCT2DEC")->impl({a[0]}, *(EvalCtx*)nullptr);
+C/C++:                                                             ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:316:56: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("DEC2BIN")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                        ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:319:61: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value d = findFunction("OCT2DEC")->impl({a[0]}, *(EvalCtx*)nullptr);
+C/C++:                                                             ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:323:56: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("DEC2HEX")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                        ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:326:61: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value d = findFunction("HEX2DEC")->impl({a[0]}, *(EvalCtx*)nullptr);
+C/C++:                                                             ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:330:56: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("DEC2BIN")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                        ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:333:61: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value d = findFunction("HEX2DEC")->impl({a[0]}, *(EvalCtx*)nullptr);
+C/C++:                                                             ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:337:56: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("DEC2OCT")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                        ^~~~~~~~~~~~~~~~~~
+C/C++: 12 warnings generated.
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_more.cpp:271:57: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value d = findFunction("DURATION")->impl(a, *(EvalCtx*)nullptr);
+C/C++:                                                         ^~~~~~~~~~~~~~~~~~
+C/C++: 1 warning generated.
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat2.cpp:150:58: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value r = findFunction("LINEST")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                          ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat2.cpp:161:60: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value fit = findFunction("LINEST")->impl(base, *(EvalCtx*)nullptr);
+C/C++:                                                            ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat2.cpp:197:60: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value fit = findFunction("LOGEST")->impl(base, *(EvalCtx*)nullptr);
+C/C++:                                                            ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat2.cpp:407:61: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("LOGNORM.DIST")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                             ^~~~~~~~~~~~~~~~~~
+C/C++: 4 warnings generated.
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_fin.cpp:258:54: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value ip = findFunction("IPMT")->impl(a, *(EvalCtx*)nullptr);
+C/C++:                                                      ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_fin.cpp:705:63: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:                 Value pv = findFunction("PRICE")->impl(pArgs, *(EvalCtx*)nullptr);
+C/C++:                                                               ^~~~~~~~~~~~~~~~~~
+C/C++: 2 warnings generated.
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:188:56: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value sd = findFunction("STDEVA")->impl(a, *(EvalCtx*)nullptr);
+C/C++:                                                        ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:295:63: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("PERCENTILE.INC")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                               ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:301:63: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("PERCENTILE.EXC")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                               ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:372:55: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value r = findFunction("CORREL")->impl(a, *(EvalCtx*)nullptr);
+C/C++:                                                       ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:415:55: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value sl = findFunction("SLOPE")->impl(a, *(EvalCtx*)nullptr);
+C/C++:                                                       ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:420:66: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value sl = findFunction("SLOPE")->impl({a[1], a[2]}, *(EvalCtx*)nullptr);
+C/C++:                                                                  ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:422:70: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value ic = findFunction("INTERCEPT")->impl({a[1], a[2]}, *(EvalCtx*)nullptr);
+C/C++:                                                                      ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:434:55: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value sl = findFunction("SLOPE")->impl(a, *(EvalCtx*)nullptr);
+C/C++:                                                       ^~~~~~~~~~~~~~~~~~
+C/C++: 8 warnings generated.
+
+> Task :app:configureCMakeDebug[x86]
+
+> Task :app:buildCMakeDebug[x86]
+C/C++: ninja: Entering directory `/home/runner/work/xlengine/xlengine/android/app/.cxx/Debug/1k1c3s6c/x86'
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_fin.cpp:258:54: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value ip = findFunction("IPMT")->impl(a, *(EvalCtx*)nullptr);
+C/C++:                                                      ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_fin.cpp:705:63: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:                 Value pv = findFunction("PRICE")->impl(pArgs, *(EvalCtx*)nullptr);
+C/C++:                                                               ^~~~~~~~~~~~~~~~~~
+C/C++: 2 warnings generated.
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_more.cpp:271:57: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value d = findFunction("DURATION")->impl(a, *(EvalCtx*)nullptr);
+C/C++:                                                         ^~~~~~~~~~~~~~~~~~
+C/C++: 1 warning generated.
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:298:61: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value d = findFunction("BIN2DEC")->impl({a[0]}, *(EvalCtx*)nullptr);
+C/C++:                                                             ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:302:56: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("DEC2HEX")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                        ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:305:61: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value d = findFunction("BIN2DEC")->impl({a[0]}, *(EvalCtx*)nullptr);
+C/C++:                                                             ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:309:56: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("DEC2OCT")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                        ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:312:61: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value d = findFunction("OCT2DEC")->impl({a[0]}, *(EvalCtx*)nullptr);
+C/C++:                                                             ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:316:56: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("DEC2BIN")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                        ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:319:61: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value d = findFunction("OCT2DEC")->impl({a[0]}, *(EvalCtx*)nullptr);
+C/C++:                                                             ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:323:56: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("DEC2HEX")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                        ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:326:61: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value d = findFunction("HEX2DEC")->impl({a[0]}, *(EvalCtx*)nullptr);
+C/C++:                                                             ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:330:56: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("DEC2BIN")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                        ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:333:61: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value d = findFunction("HEX2DEC")->impl({a[0]}, *(EvalCtx*)nullptr);
+C/C++:                                                             ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:337:56: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("DEC2OCT")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                        ^~~~~~~~~~~~~~~~~~
+C/C++: 12 warnings generated.
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat2.cpp:150:58: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value r = findFunction("LINEST")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                          ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat2.cpp:161:60: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value fit = findFunction("LINEST")->impl(base, *(EvalCtx*)nullptr);
+C/C++:                                                            ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat2.cpp:197:60: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value fit = findFunction("LOGEST")->impl(base, *(EvalCtx*)nullptr);
+C/C++:                                                            ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat2.cpp:407:61: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("LOGNORM.DIST")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                             ^~~~~~~~~~~~~~~~~~
+C/C++: 4 warnings generated.
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:188:56: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value sd = findFunction("STDEVA")->impl(a, *(EvalCtx*)nullptr);
+C/C++:                                                        ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:295:63: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("PERCENTILE.INC")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                               ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:301:63: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("PERCENTILE.EXC")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                               ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:372:55: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value r = findFunction("CORREL")->impl(a, *(EvalCtx*)nullptr);
+C/C++:                                                       ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:415:55: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value sl = findFunction("SLOPE")->impl(a, *(EvalCtx*)nullptr);
+C/C++:                                                       ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:420:66: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value sl = findFunction("SLOPE")->impl({a[1], a[2]}, *(EvalCtx*)nullptr);
+C/C++:                                                                  ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:422:70: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value ic = findFunction("INTERCEPT")->impl({a[1], a[2]}, *(EvalCtx*)nullptr);
+C/C++:                                                                      ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:434:55: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value sl = findFunction("SLOPE")->impl(a, *(EvalCtx*)nullptr);
+C/C++:                                                       ^~~~~~~~~~~~~~~~~~
+C/C++: 8 warnings generated.
+
+> Task :app:configureCMakeDebug[x86_64]
+
+> Task :app:buildCMakeDebug[x86_64]
+C/C++: ninja: Entering directory `/home/runner/work/xlengine/xlengine/android/app/.cxx/Debug/1k1c3s6c/x86_64'
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:298:61: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value d = findFunction("BIN2DEC")->impl({a[0]}, *(EvalCtx*)nullptr);
+C/C++:                                                             ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:302:56: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("DEC2HEX")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                        ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:305:61: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value d = findFunction("BIN2DEC")->impl({a[0]}, *(EvalCtx*)nullptr);
+C/C++:                                                             ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:309:56: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("DEC2OCT")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                        ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:312:61: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value d = findFunction("OCT2DEC")->impl({a[0]}, *(EvalCtx*)nullptr);
+C/C++:                                                             ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:316:56: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("DEC2BIN")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                        ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:319:61: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value d = findFunction("OCT2DEC")->impl({a[0]}, *(EvalCtx*)nullptr);
+C/C++:                                                             ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:323:56: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("DEC2HEX")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                        ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:326:61: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value d = findFunction("HEX2DEC")->impl({a[0]}, *(EvalCtx*)nullptr);
+C/C++:                                                             ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:330:56: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("DEC2BIN")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                        ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:333:61: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value d = findFunction("HEX2DEC")->impl({a[0]}, *(EvalCtx*)nullptr);
+C/C++:                                                             ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_eng.cpp:337:56: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("DEC2OCT")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                        ^~~~~~~~~~~~~~~~~~
+C/C++: 12 warnings generated.
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_more.cpp:271:57: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value d = findFunction("DURATION")->impl(a, *(EvalCtx*)nullptr);
+C/C++:                                                         ^~~~~~~~~~~~~~~~~~
+C/C++: 1 warning generated.
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_fin.cpp:258:54: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value ip = findFunction("IPMT")->impl(a, *(EvalCtx*)nullptr);
+C/C++:                                                      ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_fin.cpp:705:63: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:                 Value pv = findFunction("PRICE")->impl(pArgs, *(EvalCtx*)nullptr);
+C/C++:                                                               ^~~~~~~~~~~~~~~~~~
+C/C++: 2 warnings generated.
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat2.cpp:150:58: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value r = findFunction("LINEST")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                          ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat2.cpp:161:60: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value fit = findFunction("LINEST")->impl(base, *(EvalCtx*)nullptr);
+C/C++:                                                            ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat2.cpp:197:60: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value fit = findFunction("LOGEST")->impl(base, *(EvalCtx*)nullptr);
+C/C++:                                                            ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat2.cpp:407:61: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("LOGNORM.DIST")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                             ^~~~~~~~~~~~~~~~~~
+C/C++: 4 warnings generated.
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:188:56: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value sd = findFunction("STDEVA")->impl(a, *(EvalCtx*)nullptr);
+C/C++:                                                        ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:295:63: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("PERCENTILE.INC")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                               ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:301:63: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             return findFunction("PERCENTILE.EXC")->impl(args, *(EvalCtx*)nullptr);
+C/C++:                                                               ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:372:55: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value r = findFunction("CORREL")->impl(a, *(EvalCtx*)nullptr);
+C/C++:                                                       ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:415:55: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value sl = findFunction("SLOPE")->impl(a, *(EvalCtx*)nullptr);
+C/C++:                                                       ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:420:66: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value sl = findFunction("SLOPE")->impl({a[1], a[2]}, *(EvalCtx*)nullptr);
+C/C++:                                                                  ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:422:70: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value ic = findFunction("INTERCEPT")->impl({a[1], a[2]}, *(EvalCtx*)nullptr);
+C/C++:                                                                      ^~~~~~~~~~~~~~~~~~
+C/C++: /home/runner/work/xlengine/xlengine/src/fn_stat.cpp:434:55: warning: binding dereferenced null pointer to reference has undefined behavior [-Wnull-dereference]
+C/C++:             Value sl = findFunction("SLOPE")->impl(a, *(EvalCtx*)nullptr);
+C/C++:                                                       ^~~~~~~~~~~~~~~~~~
+C/C++: 8 warnings generated.
+
+> Task :app:mergeDebugJniLibFolders
+> Task :app:validateSigningDebug
+> Task :app:writeDebugAppMetadata
+> Task :app:writeDebugSigningConfigVersions
+> Task :app:mergeDebugNativeLibs
+> Task :app:stripDebugDebugSymbols
+> Task :app:packageDebug
+> Task :app:createDebugApkListingFileRedirect
+> Task :app:assembleDebug
+
+BUILD SUCCESSFUL in 2m 16s
+41 actionable tasks: 41 executed
