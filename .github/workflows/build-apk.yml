@@ -78,18 +78,25 @@ jobs:
           ls -la android/app/build/outputs/apk/debug/
           ls -la android/app/build/intermediates/stripped_native_libs/debug/out/lib/*/ 2>/dev/null || true
 
+      - name: 改名成品
+        # app-debug.apk 是构建期命名，放到 Artifact / Release 里看不出是什么
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/debug/app-debug.apk dist/xlengine.apk
+          ls -la dist/
+
       - name: 上传 APK
         uses: actions/upload-artifact@v4
         with:
           name: xlengine-android-apk
-          path: android/app/build/outputs/apk/debug/*.apk
+          path: dist/xlengine.apk
           if-no-files-found: error
 
       - name: 打 tag 时发布到 Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: android/app/build/outputs/apk/debug/*.apk
+          files: dist/xlengine.apk
           generate_release_notes: true
 
       - name: 把成品推回仓库
@@ -115,8 +122,6 @@ jobs:
           git checkout -B main origin/main
           cp /tmp/artifacts/xlengine.apk dist/ 2>/dev/null || true
           # 改个名再提交：app-debug.apk 是构建期命名，放到 dist/ 里看不出是什么
-          mkdir -p dist
-          cp android/app/build/outputs/apk/debug/app-debug.apk dist/xlengine.apk
           ls -la dist/ || true
           git add -f dist/xlengine.apk
           if git diff --cached --quiet; then echo "成品无变化，跳过"; exit 0; fi
