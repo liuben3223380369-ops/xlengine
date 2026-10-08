@@ -45,8 +45,8 @@ jobs:
           exit $rc
 
       - name: 回传构建日志
-        # CI 的运行日志在外部取不到（结果域名被拦），所以把日志强制推到
-        # 独立的 ci-logs 分支，再用 API 读回来排查。用 -f 避免并发推冲突。
+        # CI 的运行日志在外部取不到（结果域名被拦），所以把日志推到独立分支
+        # 再用 API 读回。两个工作流各用一个分支 —— 共用一个分支时，-f 会互相覆盖。
         if: always()
         run: |
           git config user.name "ci-bot"
@@ -56,7 +56,7 @@ jobs:
           ls -la ci-logs/ || true
           git add -f ci-logs/build-exe.log
           git commit -m "CI 日志: build-exe run ${{ github.run_id }}" || echo "无变化"
-          git push -f origin HEAD:ci-logs || echo "推送失败"
+          git push -f origin HEAD:ci-logs-exe || echo "推送失败"
 
 
       - name: 查看产物
