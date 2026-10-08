@@ -33,7 +33,17 @@ jobs:
       - name: 编译
         run: |
           chmod +x build_exe.sh
-          ./build_exe.sh
+          # 保存完整日志，失败时能下载下来看（CI 上没法直接看终端）
+          ./build_exe.sh 2>&1 | tee build-exe.log
+          exit ${PIPESTATUS[0]}
+
+      - name: 上传构建日志
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-exe-log
+          path: build-exe.log
+          if-no-files-found: ignore
 
       - name: 查看产物
         run: |

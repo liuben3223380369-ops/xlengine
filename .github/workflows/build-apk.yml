@@ -48,7 +48,17 @@ jobs:
 
       - name: 构建 Debug APK
         working-directory: android
-        run: gradle :app:assembleDebug --no-daemon --stacktrace
+        run: |
+          gradle :app:assembleDebug --no-daemon --stacktrace 2>&1 | tee build-apk.log
+          exit ${PIPESTATUS[0]}
+
+      - name: 上传构建日志
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-apk-log
+          path: android/build-apk.log
+          if-no-files-found: ignore
 
       - name: 查看产物
         run: |
