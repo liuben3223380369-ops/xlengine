@@ -1407,3 +1407,9 @@ tests/*          9 个测试二进制
 tools/verify.py  第三方交叉验证
 out/             示例图表、xlsx、PDF
 ```
+
+
+---
+
+修复记录：上传脚本曾把 dist/ 下的 CI 成品从 tree 里排除（等于删除），
+现改为按 blob sha 接回 tree。
