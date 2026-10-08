@@ -110,7 +110,7 @@ jobs:
           cp dist/xlengine.exe /tmp/artifacts/ 2>/dev/null || true
           rm -f dist/xlengine.exe
           git checkout -B main origin/main
-          cp /tmp/artifacts/dist/xlengine.exe dist/ 2>/dev/null || true
+          cp /tmp/artifacts/xlengine.exe dist/ 2>/dev/null || true
           ls -la dist/ || true
           git add -f dist/*.exe
           if git diff --cached --quiet; then echo "成品无变化，跳过"; exit 0; fi

@@ -113,7 +113,7 @@ jobs:
           cp dist/xlengine.apk /tmp/artifacts/ 2>/dev/null || true
           rm -f dist/xlengine.apk
           git checkout -B main origin/main
-          cp /tmp/artifacts/dist/xlengine.apk dist/ 2>/dev/null || true
+          cp /tmp/artifacts/xlengine.apk dist/ 2>/dev/null || true
           # 改个名再提交：app-debug.apk 是构建期命名，放到 dist/ 里看不出是什么
           mkdir -p dist
           cp android/app/build/outputs/apk/debug/app-debug.apk dist/xlengine.apk
