@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">xlengine</string>
+    <string name="hint_formula">输入公式，如 SUM({1,2,3})</string>
+    <string name="run">求值</string>
+    <string name="demo">示例</string>
+</resources>
