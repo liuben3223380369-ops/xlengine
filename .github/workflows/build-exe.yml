@@ -32,11 +32,13 @@ jobs:
 
       - name: 编译
         run: |
-          chmod +x build_exe.sh
+          # 用 bash 直接跑，不要 chmod +x ——
+          # 改文件模式会让 git 记一个"未暂存改动"，后面 pull --rebase 就废了：
+          #   error: cannot pull with rebase: You have unstaged changes
           # 直接重定向到文件（不用管道），保证日志一定落盘 —— CI 的运行日志
           # 在外部取不到，只能靠这个文件排查。
           set +e
-          ./build_exe.sh > build-exe.log 2>&1
+          bash build_exe.sh > build-exe.log 2>&1
           rc=$?
           set -e
           echo "----- 日志尾部 -----"
@@ -104,10 +106,14 @@ jobs:
           git add -f dist/*.exe
           if git diff --cached --quiet; then echo "成品无变化，跳过"; exit 0; fi
           git commit -m "CI: 更新 Windows EXE [skip ci]"
-          # 两个工作流可能同时推，冲突就重来
+          # 分支就是从 origin/main 建出来的，直接推即可（不要再 pull --rebase：
+          # 它会因为工作区任何一点未暂存改动而拒绝工作）。
+          # 两个工作流可能同时推，失败就重新对齐后再来一次。
           for i in 1 2 3; do
-            git pull --rebase origin main && git push origin main && break
-            echo "第 $i 次推送失败，重试"
+            git push origin main && break
+            echo "第 $i 次推送失败，重新对齐后重试"
+            git fetch origin main
+            git reset --soft origin/main
             sleep 5
           done
           } 2>&1 | tee push.log

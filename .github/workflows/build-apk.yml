@@ -112,9 +112,11 @@ jobs:
           git add -f dist/xlengine.apk
           if git diff --cached --quiet; then echo "成品无变化，跳过"; exit 0; fi
           git commit -m "CI: 更新 Android APK [skip ci]"
-          # 两个工作流可能同时推，冲突就重来
+          # 与 EXE 同理：分支本就基于 origin/main，直接推，不用 pull --rebase
           for i in 1 2 3; do
-            git pull --rebase origin main && git push origin main && break
-            echo "第 $i 次推送失败，重试"
+            git push origin main && break
+            echo "第 $i 次推送失败，重新对齐后重试"
+            git fetch origin main
+            git reset --soft origin/main
             sleep 5
           done
