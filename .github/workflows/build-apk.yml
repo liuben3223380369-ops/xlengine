@@ -111,9 +111,11 @@ jobs:
           ls -la dist/ || true
           git add -f dist/xlengine.apk
           if git diff --cached --quiet; then echo "成品无变化，跳过"; exit 0; fi
-          git commit -m "CI: 更新 Android APK [skip ci]"
-          # 与 EXE 同理：分支本就基于 origin/main，直接推，不用 pull --rebase
+          # 与 EXE 同理：分支本就基于 origin/main，直接推，不用 pull --rebase。
+          # 重试时必须重新 add + commit —— reset --soft 会撤掉 commit。
           for i in 1 2 3; do
+            git add -f dist/xlengine.apk
+            git commit -m "CI: 更新 Android APK [skip ci]" || echo "本次无新内容"
             git push origin main && break
             echo "第 $i 次推送失败，重新对齐后重试"
             git fetch origin main

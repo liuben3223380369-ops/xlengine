@@ -105,11 +105,15 @@ jobs:
           ls -la dist/ || true
           git add -f dist/*.exe
           if git diff --cached --quiet; then echo "成品无变化，跳过"; exit 0; fi
-          git commit -m "CI: 更新 Windows EXE [skip ci]"
           # 分支就是从 origin/main 建出来的，直接推即可（不要再 pull --rebase：
-          # 它会因为工作区任何一点未暂存改动而拒绝工作）。
-          # 两个工作流可能同时推，失败就重新对齐后再来一次。
+          # 它会因为工作区任何一点未暂存改动而拒绝工作 —— chmod 改文件模式
+          # 就足以触发）。两个工作流可能同时推，失败就重新对齐再试。
+          #
+          # 注意 reset --soft 会撤掉 commit（只留暂存区），
+          # 所以重试时必须重新 add + commit，否则推的是空提交。
           for i in 1 2 3; do
+            git add -f dist/*.exe
+            git commit -m "CI: 更新 Windows EXE [skip ci]" || echo "本次无新内容"
             git push origin main && break
             echo "第 $i 次推送失败，重新对齐后重试"
             git fetch origin main
