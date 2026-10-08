@@ -51,6 +51,7 @@
 #endif
 #include <windows.h>
 #include <conio.h>
+#include <cstdint>
 #define XL_HAVE_WINCON 1
 #endif
 

@@ -1,5 +1,6 @@
 #include "depgraph.hpp"
 #include <algorithm>
+#include <cstdint>
 
 namespace xl {
 

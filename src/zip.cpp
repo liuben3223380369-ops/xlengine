@@ -4,6 +4,7 @@
 #include <cstring>
 #include <fstream>
 #include <ctime>
+#include <cstdint>
 
 namespace xl {
 
@@ -109,7 +110,9 @@ static bool rawInflate(const uint8_t* src, size_t srcLen, std::vector<uint8_t>& 
 // DOS 日期时间
 static uint16_t dosTime() {
     time_t t = time(nullptr);
-    struct tm tmBuf;
+    // 必须初始化：localtime/localtime_r 失败时不会写 tmBuf，
+    // 直接用未初始化的字段是 UB（GCC 会报 -Wmaybe-uninitialized）。
+    struct tm tmBuf{};
 #ifdef _WIN32
     // 不用 localtime_s：它在 MSVC 与 C11 标准里参数顺序相反，
     // MinGW 在严格模式下还可能隐藏它。C89 的 localtime 两边都有。
@@ -123,7 +126,7 @@ static uint16_t dosTime() {
 }
 static uint16_t dosDate() {
     time_t t = time(nullptr);
-    struct tm tmBuf;
+    struct tm tmBuf{};
 #ifdef _WIN32
     // 不用 localtime_s：它在 MSVC 与 C11 标准里参数顺序相反，
     // MinGW 在严格模式下还可能隐藏它。C89 的 localtime 两边都有。

@@ -155,7 +155,8 @@ def main():
     # ---- 贝塞尔 ----
     from scipy.special import iv, kv, yn, jv
     for n in [0, 1, 2]:
-        for x in [0.5, 1, 2, 5]:
+        # 0.1 与 12 是刻意加的：级数在大 x 处项会先增后减，容易因抵消而崩
+        for x in [0.1, 0.5, 1, 2, 5, 12]:
             add(f"BESSELI({x},{n})", float(iv(n, x)), 1e-8, "修正贝塞尔 I")
             add(f"BESSELK({x},{n})", float(kv(n, x)), 1e-8, "修正贝塞尔 K")
             add(f"BESSELY({x},{n})", float(yn(n, x)), 1e-8, "第二类贝塞尔 Y")

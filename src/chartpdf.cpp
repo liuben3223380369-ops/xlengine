@@ -6,6 +6,7 @@
 #include <string>
 #include <sstream>
 #include <iomanip>
+#include <cstdint>
 
 // M_PI 是 POSIX 扩展，不是 C++ 标准：MinGW 在 -std=c++17（严格 ANSI）下
 // 不定义它，于是 Windows 构建会报 "M_PI was not declared in this scope"。

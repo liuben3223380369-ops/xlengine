@@ -4,6 +4,7 @@
 #include <climits>
 #include <algorithm>
 #include <sstream>
+#include <cstdint>
 
 namespace xl {
 

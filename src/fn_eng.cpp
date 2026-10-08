@@ -1,4 +1,5 @@
 #include "functions.hpp"
+#include "bessel.hpp"
 #include "date.hpp"
 #include <algorithm>
 #include <sstream>
@@ -90,22 +91,22 @@ struct EngRegistrar {
         registerFunction("BESSELI", 2, 2, [](const std::vector<Value>& a, EvalCtx&) -> Value {
             double x, n; if (!n1(a[0], x) || !n1(a[1], n)) return Value::error(Err::Value);
             if (n < 0 || std::floor(n) != n) return Value::error(Err::Num);
-            return Value::num(std::cyl_bessel_i(n, x));
+            return Value::num(bessel::I(n, x));
         });
         registerFunction("BESSELJ", 2, 2, [](const std::vector<Value>& a, EvalCtx&) -> Value {
             double x, n; if (!n1(a[0], x) || !n1(a[1], n)) return Value::error(Err::Value);
             if (n < 0 || std::floor(n) != n) return Value::error(Err::Num);
-            return Value::num(std::cyl_bessel_j(n, x));
+            return Value::num(bessel::J(n, x));
         });
         registerFunction("BESSELK", 2, 2, [](const std::vector<Value>& a, EvalCtx&) -> Value {
             double x, n; if (!n1(a[0], x) || !n1(a[1], n)) return Value::error(Err::Value);
             if (n < 0 || std::floor(n) != n || x <= 0) return Value::error(Err::Num);
-            return Value::num(std::cyl_bessel_k(n, x));
+            return Value::num(bessel::K(n, x));
         });
         registerFunction("BESSELY", 2, 2, [](const std::vector<Value>& a, EvalCtx&) -> Value {
             double x, n; if (!n1(a[0], x) || !n1(a[1], n)) return Value::error(Err::Value);
             if (n < 0 || std::floor(n) != n || x <= 0) return Value::error(Err::Num);
-            return Value::num(std::cyl_neumann(n, x));
+            return Value::num(bessel::Y(n, x));
         });
 
         // --- 误差函数 ---

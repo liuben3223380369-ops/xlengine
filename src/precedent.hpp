@@ -4,6 +4,7 @@
 #include "ast.hpp"
 #include <string>
 #include <vector>
+#include <cstdint>
 
 namespace xl {
 
