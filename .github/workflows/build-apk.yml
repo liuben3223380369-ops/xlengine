@@ -93,17 +93,28 @@ jobs:
           generate_release_notes: true
 
       - name: 把成品推回仓库
-        # 与 EXE 同理：Artifacts 会过期，推回仓库才能"克隆即有"。
-        # 改名为 xlengine.apk 后再提交，避免 app-debug.apk 这种构建期命名。
+        # Artifacts 有保存期限，也不是"打开仓库就能拿到"。所以把构建好的成品
+        # 直接提交回仓库的 dist/ —— 克隆下来就有，不用再去 Actions 页面翻。
+        #
+        # 必须从远程 main 重新建分支：上一步"回传构建日志"已经在本地留下过
+        # commit，在此基础上 pull --rebase 容易冲突。
+        # commit message 带 [skip ci]，否则这次 push 会再次触发本工作流。
         if: github.event_name != 'pull_request'
         run: |
           git config user.name "ci-bot"
           git config user.email "ci-bot@example.com"
+          git fetch origin main
+          git checkout -B main origin/main
+          # 改个名再提交：app-debug.apk 是构建期命名，放到 dist/ 里看不出是什么
           mkdir -p dist
           cp android/app/build/outputs/apk/debug/app-debug.apk dist/xlengine.apk
-          ls -la dist/
+          ls -la dist/ || true
           git add -f dist/xlengine.apk
-          git diff --cached --quiet && echo "成品无变化，跳过提交" && exit 0
+          if git diff --cached --quiet; then echo "成品无变化，跳过"; exit 0; fi
           git commit -m "CI: 更新 Android APK [skip ci]"
-          git pull --rebase origin main
-          git push origin HEAD:main
+          # 两个工作流可能同时推，冲突就重来
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push origin main && break
+            echo "第 $i 次推送失败，重试"
+            sleep 5
+          done
