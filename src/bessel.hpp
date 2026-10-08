@@ -19,6 +19,12 @@
 // x 很大时级数收敛慢，但 Excel 的常规用法（x 在 0~几十）精度足够。
 #include <cmath>
 
+// M_PI 是 POSIX 扩展，不是 C++ 标准。MinGW 在严格 ANSI 模式下不定义它，
+// 之前就在别的文件里踩过一次，这里同样要兜底。
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 namespace xl {
 namespace bessel {
 
