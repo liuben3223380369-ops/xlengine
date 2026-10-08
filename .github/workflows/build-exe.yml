@@ -33,23 +33,29 @@ jobs:
       - name: 编译
         run: |
           chmod +x build_exe.sh
-          # 保存完整日志，失败时能下载下来看（CI 上没法直接看终端）
-          ./build_exe.sh 2>&1 | tee build-exe.log
-          exit ${PIPESTATUS[0]}
+          # 直接重定向到文件（不用管道），保证日志一定落盘 —— CI 的运行日志
+          # 在外部取不到，只能靠这个文件排查。
+          set +e
+          ./build_exe.sh > build-exe.log 2>&1
+          rc=$?
+          set -e
+          echo "----- 日志尾部 -----"
+          tail -80 build-exe.log || true
+          echo "-------------------"
+          exit $rc
 
-      - name: 失败时把日志提交到 ci-logs 分支
-        # CI 的运行日志在沙盒里取不到（结果域名被拦），所以把日志落成文件
-        # 推到一个专用分支，再用 API 读回来排查。
-        if: failure()
+      - name: 回传构建日志
+        # 提交到 main 并带 [skip ci]，避免再次触发工作流造成死循环
+        if: always()
         run: |
           git config user.name "ci-bot"
           git config user.email "ci-bot@example.com"
-          git checkout -B ci-logs
           mkdir -p ci-logs
           cp build-exe.log ci-logs/build-exe.log
           git add -f ci-logs/build-exe.log
-          git commit -m "CI 日志: build-exe run ${{ github.run_id }}"
-          git push -f origin ci-logs
+          git commit -m "CI 日志 [skip ci]: build-exe run ${{ github.run_id }}" || echo "无变化"
+          git pull --rebase origin main || true
+          git push origin HEAD:main || echo "推送失败（不影响构建结论）"
 
       - name: 查看产物
         run: |

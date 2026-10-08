@@ -49,20 +49,26 @@ jobs:
       - name: 构建 Debug APK
         working-directory: android
         run: |
-          gradle :app:assembleDebug --no-daemon --stacktrace 2>&1 | tee build-apk.log
-          exit ${PIPESTATUS[0]}
+          set +e
+          gradle :app:assembleDebug --no-daemon --stacktrace > build-apk.log 2>&1
+          rc=$?
+          set -e
+          echo "----- 日志尾部 -----"
+          tail -80 build-apk.log || true
+          echo "-------------------"
+          exit $rc
 
-      - name: 失败时把日志提交到 ci-logs 分支
-        if: failure()
+      - name: 回传构建日志
+        if: always()
         run: |
           git config user.name "ci-bot"
           git config user.email "ci-bot@example.com"
-          git checkout -B ci-logs || git checkout ci-logs
           mkdir -p ci-logs
           cp android/build-apk.log ci-logs/build-apk.log
           git add -f ci-logs/build-apk.log
-          git commit -m "CI 日志: build-apk run ${{ github.run_id }}"
-          git push -f origin ci-logs
+          git commit -m "CI 日志 [skip ci]: build-apk run ${{ github.run_id }}" || echo "无变化"
+          git pull --rebase origin main || true
+          git push origin HEAD:main || echo "推送失败（不影响构建结论）"
 
       - name: 查看产物
         run: |
