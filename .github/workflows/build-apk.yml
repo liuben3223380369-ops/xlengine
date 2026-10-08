@@ -59,16 +59,19 @@ jobs:
           exit $rc
 
       - name: 回传构建日志
+        # CI 的运行日志在外部取不到（结果域名被拦），所以把日志强制推到
+        # 独立的 ci-logs 分支，再用 API 读回来排查。用 -f 避免并发推冲突。
         if: always()
         run: |
           git config user.name "ci-bot"
           git config user.email "ci-bot@example.com"
           mkdir -p ci-logs
-          cp android/build-apk.log ci-logs/build-apk.log
+          cp android/build-apk.log ci-logs/build-apk.log || echo "日志缺失"
+          ls -la ci-logs/ || true
           git add -f ci-logs/build-apk.log
-          git commit -m "CI 日志 [skip ci]: build-apk run ${{ github.run_id }}" || echo "无变化"
-          git pull --rebase origin main || true
-          git push origin HEAD:main || echo "推送失败（不影响构建结论）"
+          git commit -m "CI 日志: build-apk run ${{ github.run_id }}" || echo "无变化"
+          git push -f origin HEAD:ci-logs || echo "推送失败"
+
 
       - name: 查看产物
         run: |

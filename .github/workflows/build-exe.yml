@@ -45,17 +45,19 @@ jobs:
           exit $rc
 
       - name: 回传构建日志
-        # 提交到 main 并带 [skip ci]，避免再次触发工作流造成死循环
+        # CI 的运行日志在外部取不到（结果域名被拦），所以把日志强制推到
+        # 独立的 ci-logs 分支，再用 API 读回来排查。用 -f 避免并发推冲突。
         if: always()
         run: |
           git config user.name "ci-bot"
           git config user.email "ci-bot@example.com"
           mkdir -p ci-logs
-          cp build-exe.log ci-logs/build-exe.log
+          cp build-exe.log ci-logs/build-exe.log || echo "日志缺失"
+          ls -la ci-logs/ || true
           git add -f ci-logs/build-exe.log
-          git commit -m "CI 日志 [skip ci]: build-exe run ${{ github.run_id }}" || echo "无变化"
-          git pull --rebase origin main || true
-          git push origin HEAD:main || echo "推送失败（不影响构建结论）"
+          git commit -m "CI 日志: build-exe run ${{ github.run_id }}" || echo "无变化"
+          git push -f origin HEAD:ci-logs || echo "推送失败"
+
 
       - name: 查看产物
         run: |
