@@ -791,6 +791,71 @@ LO 其实答对的（如 `SUMIF(...,{10,20,30,40})`）不会被差异表掩盖�
 
 ---
 
+## GitHub Actions：自动打包 EXE 与 APK
+
+推送到 `main` 会自动触发两条工作流，也可以在 Actions 页面手动 `workflow_dispatch` 触发。
+
+| 工作流 | 运行环境 | 产物 | 体积 |
+|---|---|---|---|
+| `build-exe.yml` | ubuntu-latest + mingw-w64 | `xlengine-windows-x64`（EXE） | 约 1.2 MB |
+| `build-apk.yml` | ubuntu-latest + Android NDK | `xlengine-android-apk`（APK） | 约 10.3 MB |
+
+打 tag（`v*`）时会自动挂到 Release 上。产物在 Actions 运行页的 **Artifacts** 区下载。
+
+### Android 侧的适配
+
+引擎核心（词法 / 语法 / 求值 / 495 个函数 / xlsx / PDF / 图表）与终端无关，
+Android 上直接复用。CMake 里只排除了两个文件：
+
+```
+main.cpp   命令行入口
+tui.cpp    终端 UI（依赖 termios / Windows Console API，Android 没有）
+```
+
+`jni_bridge.cpp` 只暴露一个方法：公式文本进、显示文本出。demo 界面会跑一批覆盖
+Excel 典型暗坑的示例（`-2^2`、`MOD(-3,2)`、`INT(-2.5)`、中文 `LEN` 等），
+既是演示也是自检。**这是最小可用的外壳，不是完整的表格应用** —— 网格控件与
+交互层需要另写。
+
+### CI 逼出来的三个跨平台问题
+
+本地 GCC 编译全绿，上 CI 才暴露：
+
+**1. `cstdint` 缺失（12 个文件）**
+`src/image.hpp` 用了 `std::vector<uint8_t>` 却没 `#include <cstdint>`。
+GCC 通过其他头文件的间接包含放行了，mingw 直接报 `template argument 1 is invalid`。
+**依赖间接包含迟早会在别的编译器上翻车**，已给全部 12 个文件显式补上。
+
+**2. `struct tm` 未初始化**
+`zip.cpp` 的 `dosTime()` / `dosDate()` 声明了 `struct tm tmBuf;` 却没初始化，
+而 `localtime` 失败时不会写入 —— 直接读未初始化字段是 UB。改成 `struct tm tmBuf{}`。
+
+**3. `std::cyl_neumann` 等标准特殊函数不存在（Android）**
+`std::cyl_bessel_i/j/k`、`std::cyl_neumann` 是 C++17 的"数学特殊函数"，
+**libstdc++ 有，libc++（Android NDK 默认）没有**，编译直接失败：
+
+```
+error: no member named 'cyl_bessel_i' in namespace 'std'
+```
+
+改为自持实现（`src/bessel.hpp`），顺带统一精度行为，并已与 SciPy 逐点核对。
+过程中修掉两个自己写错的地方：
+
+- **Y_0 的级数符号**：把 `(-1)^(k+1)` 写成 `(-1)^k`，x=0.5 时得 -0.5222，正确 -0.4445
+- **Y_1 不能靠 Wronskian 反推**：`Y_1 = (J_1·Y_0 + 2/(πx))/J_0`，但 **J_0 有零点**
+  （第一个在 x≈2.4048），在那附近除法会把结果放大到荒谬的值。改成直接用级数
+
+另外 `M_PI` 在 MinGW 严格 ANSI 模式下不定义 —— 这个坑之前在别的文件里踩过一次，
+`bessel.hpp` 里又踩了一次，已统一加兜底。
+
+### 排查 CI 的一个小技巧
+
+CI 的运行日志在本项目环境里取不到（结果域名被拦）。所以工作流在失败时会把
+完整日志提交到独立分支（`ci-logs-exe` / `ci-logs-apk`），再用 API 读回。
+**两个工作流各用一个分支**——共用一个时 `-f` 强制推送会互相覆盖，日志会被冲掉。
+
+---
+
 ## 已知边界（诚实标注）
 
 Excel 里批注的红色三角靠 `vmlDrawingN.vml` + sheetN.xml 的 `<legacyDrawing>` 呈现。
