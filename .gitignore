@@ -1,0 +1,67 @@
+# 编译中间产物
+*.o
+*.d
+
+# 主程序与构建产物
+/xl
+/dist/
+*.exe
+
+# 测试二进制（无扩展名，需显式列出）
+/tests/auditt
+/tests/cft
+/tests/chartt
+/tests/dept
+/tests/dnt
+/tests/dvt
+/tests/fillt
+/tests/imgt
+/tests/notet
+/tests/numfmtt
+/tests/pdft
+/tests/refshiftt
+/tests/robustt
+/tests/sharedt
+/tests/smoket
+/tests/stresst
+/tests/stylet
+/tests/tuit
+/tests/viewt
+/tests/xlsxlt
+/tests/xltest
+/tests/xltest2
+
+# 工具二进制
+/tools/evalbatch
+/tools/cfdemo
+/tools/chartdemo
+/tools/chartpdf
+/tools/dndemo
+/tools/dvdemo
+/tools/imagedemo
+/tools/notedemo
+/tools/numfmtdemo
+/tools/pdfmin
+/tools/prof
+/tools/sheetpdf
+/tools/styledemo
+/tools/viewdemo
+/tools/xlsxdemo
+
+# 示例产物（make demo / make charts 可重新生成）
+/out/
+
+# 压缩包
+*.zip
+
+# 编辑器与系统
+.vscode/
+.idea/
+.DS_Store
+
+# Android 构建产物
+/android/.gradle/
+/android/build/
+/android/app/build/
+/android/app/.cxx/
+/android/local.properties

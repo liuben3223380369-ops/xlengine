@@ -1,0 +1,62 @@
+name: 构建 Windows EXE
+
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build-exe:
+    name: 交叉编译 Windows 可执行程序
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 mingw-w64 交叉编译器
+        run: |
+          sudo apt-get update
+          # 关键：Debian/Ubuntu 的 mingw-w64 只是元包，**不含 zlib 头文件**。
+          # 少了 libz-mingw-w64-dev，编译 canvas.cpp / zip.cpp 时会报：
+          #   zlib.h: No such file or directory
+          sudo apt-get install -y --no-install-recommends \
+            mingw-w64 \
+            libz-mingw-w64-dev
+          x86_64-w64-mingw32-g++ --version
+
+      - name: 编译
+        run: |
+          chmod +x build_exe.sh
+          ./build_exe.sh
+
+      - name: 查看产物
+        run: |
+          ls -la dist/
+          file dist/xlengine.exe 2>/dev/null || true
+
+      - name: 用 Wine 冒烟测试
+        # Wine 本身可能抽风，但不该因此判构建失败
+        continue-on-error: true
+        run: |
+          sudo apt-get install -y --no-install-recommends wine64 || true
+          wine64 dist/xlengine.exe --test 2>&1 | tail -20 || true
+
+      - name: 上传 EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: xlengine-windows-x64
+          path: dist/*.exe
+          if-no-files-found: error
+
+      - name: 打 tag 时发布到 Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.exe
+          generate_release_notes: true
