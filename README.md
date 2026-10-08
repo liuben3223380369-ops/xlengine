@@ -808,7 +808,21 @@ https://github.com/liuben3223380369-ops/xlengine/raw/main/dist/xlengine.exe
 https://github.com/liuben3223380369-ops/xlengine/raw/main/dist/xlengine.apk
 ```
 
-打 tag（`v*`）时还会额外挂一份到 Release 上。
+打 tag（`v*`）时会额外挂一份到 Release 上。当前 Release：**v1.0**
+
+```
+https://github.com/liuben3223380369-ops/xlengine/releases/latest
+```
+
+注意一个容易踩空的地方：**用 Git Data API 创建的 tag 不会触发工作流**（不是真正的
+`git push`）。要让成品挂到 Release 上，得用真正的 `git push`：
+
+```
+git tag v1.1 && git push origin v1.1
+```
+
+或者手动触发工作流，并把 **ref 填成 tag 名**（`v1.0`），
+这样 `github.ref` 才是 `refs/tags/v*`，发布步骤才会执行。
 
 APK 只编 `arm64-v8a`：三架构的 debug 包有 53 MB，塞进 git 仓库太占地方。
 
