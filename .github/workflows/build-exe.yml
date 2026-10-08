@@ -101,7 +101,16 @@ jobs:
           git config user.name "ci-bot"
           git config user.email "ci-bot@example.com"
           git fetch origin main
+          # 上一次 CI 已经把同名成品提交进 origin/main 了，而工作区里刚构建的
+          # 那个是未跟踪文件 —— 直接 checkout 会被拒绝：
+          #   error: The following untracked working tree files would be
+          #          overwritten by checkout: dist/dist/xlengine.exe
+          # 所以先把新成品挪走，checkout 完再放回来。
+          mkdir -p /tmp/artifacts
+          cp dist/xlengine.exe /tmp/artifacts/ 2>/dev/null || true
+          rm -f dist/xlengine.exe
           git checkout -B main origin/main
+          cp /tmp/artifacts/dist/xlengine.exe dist/ 2>/dev/null || true
           ls -la dist/ || true
           git add -f dist/*.exe
           if git diff --cached --quiet; then echo "成品无变化，跳过"; exit 0; fi
