@@ -101,6 +101,17 @@ public:
     std::pair<int,int> mergeSpan(int sheetIdx, int col, int row) const;
     const std::vector<std::vector<std::array<int,4>>>& allMerges() const;
 
+    // ---- 结构性编辑：插入 / 删除行与列 ----
+    // 定义在 edit.cpp。除内容外，还会同步移动合并区域、条件格式、
+    // 数据验证、批注、图表/图片锚点与行高列宽。
+    void insertRows(int sheetIdx, int at, int count);
+    void insertCols(int sheetIdx, int at, int count);
+    void deleteRows(int sheetIdx, int at, int count);
+    void deleteCols(int sheetIdx, int at, int count);
+    void structuralEdit(int sheetIdx, int axis, int at, int delta);
+    // 取消合并：与给定区域有交集的合并块全部移除
+    bool unmerge(int sheetIdx, int c0, int r0, int c1, int r1);
+
     // ---- 条件格式 ----
     void addCf(int sheetIdx, const ConditionalFormat& cf);
     void clearCfs(int sheetIdx);

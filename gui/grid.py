@@ -315,9 +315,31 @@ class GridView(QAbstractScrollArea):
         # 3) 选区与光标（画在网格线之上，否则会被线切断）
         self._paint_selection(p, sc0, sr0, sc1, sr1)
 
-        # 4) 表头（最后画，盖住滚动出去的部分）
+        # 4) 冻结线（在网格线之上、表头之下）
+        self._paint_freeze(p, vp)
+
+        # 5) 表头（最后画，盖住滚动出去的部分）
         self._paint_headers(p, c0, c1, r0, r1, vp)
         p.end()
+
+    def _paint_freeze(self, p, vp):
+        """画冻结分隔线。
+
+        真正的冻结（滚动时前几行不动）需要另一套绘制通道；
+        这里先画出那条线，让用户知道冻结在哪儿。
+        """
+        fcols, frows = self.sheet.freeze()
+        if not fcols and not frows:
+            return
+        p.setPen(QPen(QColor("#1a73e8"), 2))
+        if fcols:
+            x = self.x_of_col(fcols)
+            if HEADER_W < x < vp.width():
+                p.drawLine(x, HEADER_H, x, vp.height())
+        if frows:
+            y = self.y_of_row(frows)
+            if HEADER_H < y < vp.height():
+                p.drawLine(HEADER_W, y, vp.width(), y)
 
     def _paint_cell(self, p, col, row, rect, sel):
         sc0, sr0, sc1, sr1 = sel
@@ -730,7 +752,12 @@ class GridView(QAbstractScrollArea):
         m.addAction("清除内容\tDel", lambda: self._clear_selection())
         m.addSeparator()
         m.addAction("在上方插入行", lambda: self._insert_rows(True))
+        m.addAction("在下方插入行", lambda: self._insert_rows(False))
         m.addAction("在左侧插入列", lambda: self._insert_cols(True))
+        m.addAction("在右侧插入列", lambda: self._insert_cols(False))
+        m.addSeparator()
+        m.addAction("删除整行", lambda: self._delete_rows())
+        m.addAction("删除整列", lambda: self._delete_cols())
         m.addSeparator()
         act_merge = m.addAction("合并单元格", lambda: self._toggle_merge())
         act_merge.setCheckable(True)
@@ -773,9 +800,12 @@ class GridView(QAbstractScrollArea):
         c0, r0, c1, r1 = self.sel_rect()
         st, _, _ = self.sheet.merge_info(c0, r0)
         if st == 2:
-            # 引擎没有"取消合并"的独立接口，这里重建整表不现实，
-            # 退化为提示 —— 见 README 的已知边界
-            self.statusMessage.emit("取消合并暂未实现（引擎侧缺 unmerge 接口）")
+            if self.sheet.unmerge(c0, r0, c1, r1):
+                self.modified.emit()
+                self.viewport().update()
+                self.statusMessage.emit("已取消合并")
+            else:
+                self.statusMessage.emit("该位置没有可取消的合并")
             return
         if c0 == c1 and r0 == r1:
             self.statusMessage.emit("请先选择要合并的区域")
@@ -786,10 +816,48 @@ class GridView(QAbstractScrollArea):
         self.statusMessage.emit("已合并 %s:%s" % (addr(c0, r0), addr(c1, r1)))
 
     def _insert_rows(self, above):
-        self.statusMessage.emit("插入行暂未实现（需要引擎侧的行移位接口）")
+        c0, r0, c1, r1 = self.sel_rect()
+        at = r0 if above else r1 + 1
+        n = r1 - r0 + 1
+        if self.sheet.insert_rows(at, n):
+            self.wb.recalc()
+            self.modified.emit()
+            self.viewport().update()
+            self.statusMessage.emit("已在第 %d 行处插入 %d 行" % (at + 1, n))
+        else:
+            self.statusMessage.emit("插入失败: " + self.wb.last_error)
 
     def _insert_cols(self, left):
-        self.statusMessage.emit("插入列暂未实现（需要引擎侧的列移位接口）")
+        c0, r0, c1, r1 = self.sel_rect()
+        at = c0 if left else c1 + 1
+        n = c1 - c0 + 1
+        if self.sheet.insert_cols(at, n):
+            self.wb.recalc()
+            self.modified.emit()
+            self.viewport().update()
+            self.statusMessage.emit("已在第 %s 列处插入 %d 列" % (col_name(at), n))
+        else:
+            self.statusMessage.emit("插入失败: " + self.wb.last_error)
+
+    def _delete_rows(self):
+        c0, r0, c1, r1 = self.sel_rect()
+        if self.sheet.delete_rows(r0, r1 - r0 + 1):
+            self.wb.recalc()
+            self.modified.emit()
+            self.viewport().update()
+            self.statusMessage.emit("已删除第 %d–%d 行" % (r0 + 1, r1 + 1))
+        else:
+            self.statusMessage.emit("删除失败: " + self.wb.last_error)
+
+    def _delete_cols(self):
+        c0, r0, c1, r1 = self.sel_rect()
+        if self.sheet.delete_cols(c0, c1 - c0 + 1):
+            self.wb.recalc()
+            self.modified.emit()
+            self.viewport().update()
+            self.statusMessage.emit("已删除 %s–%s 列" % (col_name(c0), col_name(c1)))
+        else:
+            self.statusMessage.emit("删除失败: " + self.wb.last_error)
 
 
 def _qcolor(rrggbb):

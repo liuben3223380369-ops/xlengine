@@ -396,12 +396,26 @@ class MainWindow(QMainWindow):
             self, "导出 PDF", "表格.pdf", "PDF 文件 (*.pdf);;所有文件 (*)")
         if not path:
             return
-        # 引擎的 PDF 导出走命令行工具；这里提示用法而不是假装支持
-        QMessageBox.information(
-            self, "导出 PDF",
-            "PDF 导出目前由命令行提供：\n\n"
-            "    xlengine --pdf 文件.xlsx -o 输出.pdf\n\n"
-            "图形界面的直接导出尚未接入。")
+        if not path.lower().endswith(".pdf"):
+            path += ".pdf"
+        dlg = QDialog(self)
+        dlg.setWindowTitle("导出 PDF")
+        lay = QFormLayout(dlg)
+        chk_land = QCheckBox("横向")
+        lay.addRow(chk_land)
+        lbl = QLabel("仅导出当前工作表：%s" % self.wb.sheet_name(self.grid.sheet_index))
+        lay.addRow(lbl)
+        bb = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        bb.accepted.connect(dlg.accept())
+        bb.rejected.connect(dlg.reject())
+        lay.addRow(bb)
+        if dlg.exec() != QDialog.Accepted:
+            return
+        if self.grid.sheet.export_pdf(path, "", chk_land.isChecked()):
+            self.status_label.setText("已导出 %s" % os.path.basename(path))
+        else:
+            QMessageBox.critical(self, "导出失败",
+                                 "无法导出到：\n%s\n\n%s" % (path, self.wb.last_error))
 
     def closeEvent(self, ev):
         if self._maybe_save():

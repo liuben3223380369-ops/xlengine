@@ -97,6 +97,64 @@ def test_bridge():
     ur = sh.used_range()
     check("已用区域覆盖写入范围", ur[2] >= 4 and ur[3] >= 5, "得到 %r" % (ur,))
 
+    # ---- 结构性编辑 ----
+    wb3 = engine.Workbook()
+    s3 = wb3.sheet(0)
+    s3.set_num(0, 0, 1)
+    s3.set_num(0, 1, 2)
+    s3.set_num(0, 2, 3)
+    s3.set_formula(1, 0, "=A1+A2")      # 引用第 1、2 行
+    s3.set_formula(1, 1, "=A2+A3")      # 引用第 2、3 行
+    wb3.recalc()
+    check("插入前 B1 = 3", s3.display(1, 0) == "3", s3.display(1, 0))
+
+    # 在第 2 行（index 1）处插入一行
+    s3.insert_rows(1, 1)
+    wb3.recalc()
+    check("插入后 A1 仍是 1", s3.display(0, 0) == "1", s3.display(0, 0))
+    check("插入后原第2行被挤到第3行", s3.display(0, 2) == "2", s3.display(0, 2))
+    check("插入后原第3行到第4行", s3.display(0, 3) == "3", s3.display(0, 3))
+    # 关键语义：Excel 的插入是"引用跟着数据走"，不是"引用位置固定"。
+    #   A1 在插入点之前 -> 不动
+    #   A2 正好在插入点 -> 它指向的是"原来的第 2 行"，那行数据被挤到第 3 行，
+    #                      所以引用必须跟着变成 A3，公式结果才不变。
+    # 我最初把这条写成 "A1+A2"（以为 A2 在插入点前不动），是错的。
+    check("A1 不动、A2 跟随数据变成 A3", s3.formula(1, 0) == "A1+A3", s3.formula(1, 0))
+    check("插入点后的引用后移", s3.formula(1, 2) == "A3+A4", s3.formula(1, 2))
+
+    # 绝对引用不该动
+    s3.set_formula(2, 0, "=$A$1*2")
+    s3.insert_rows(0, 1)
+    wb3.recalc()
+    check("绝对引用不随插入移动", s3.formula(2, 1) == "$A$1*2", s3.formula(2, 1))
+
+    # 列方向
+    wb4 = engine.Workbook()
+    s4 = wb4.sheet(0)
+    s4.set_num(0, 0, 10)
+    s4.set_num(1, 0, 20)
+    s4.insert_cols(1, 1)
+    wb4.recalc()
+    check("插入列后原B1到C1", s4.display(2, 0) == "20", s4.display(2, 0))
+
+    # 删除行
+    wb5 = engine.Workbook()
+    s5 = wb5.sheet(0)
+    for i in range(4):
+        s5.set_num(0, i, i + 1)
+    s5.delete_rows(1, 1)
+    wb5.recalc()
+    check("删除第2行后原第3行上移", s5.display(0, 1) == "3", s5.display(0, 1))
+
+    # 取消合并
+    wb6 = engine.Workbook()
+    s6 = wb6.sheet(0)
+    s6.merge(0, 0, 1, 1)
+    check("合并后是锚点", s6.merge_info(0, 0)[0] == 2)
+    check("取消合并成功", s6.unmerge(0, 0, 1, 1))
+    check("取消后不再是锚点", s6.merge_info(0, 0)[0] == 0)
+    check("再取消返回 False", s6.unmerge(0, 0, 1, 1) is False)
+
     # 存盘再读回
     path = "/tmp/gui_selftest.xlsx"
     if os.path.exists(path):

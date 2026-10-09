@@ -4,13 +4,13 @@ DEPFLAGS  = -MMD -MP
 
 SRCS     := src/functions.cpp src/fn_date.cpp src/fn_math.cpp src/fn_stat.cpp src/fn_stat2.cpp src/fn_array.cpp src/fn_more.cpp \
             src/fn_text.cpp src/fn_eng.cpp src/fn_fin.cpp src/fn_fill.cpp src/fn_fill2.cpp src/fn_fill3.cpp src/fn_fill4.cpp src/ttf.cpp src/pdf.cpp src/sheetpdf.cpp src/chartpdf.cpp src/tui.cpp src/refshift.cpp src/numfmt.cpp src/style.cpp src/cf.cpp src/dv.cpp src/note.cpp src/view.cpp src/image.cpp src/depgraph.cpp src/precedent.cpp \
-            src/eval.cpp src/parser.cpp src/sheet.cpp src/layout.cpp src/canvas.cpp src/render.cpp src/zip.cpp src/xml.cpp src/chartxml.cpp src/xlsx.cpp src/gui_bridge.cpp src/main.cpp
+            src/eval.cpp src/parser.cpp src/sheet.cpp src/layout.cpp src/canvas.cpp src/render.cpp src/zip.cpp src/xml.cpp src/chartxml.cpp src/xlsx.cpp src/edit.cpp src/gui_bridge.cpp src/main.cpp
 OBJS     := $(SRCS:.cpp=.o)
 DEPS     := $(OBJS:.o=.d)
 TARGET   := xl
 
-TEST_SRC := tests/test_new.cpp tests/test_new2.cpp tests/test_xlsx.cpp tests/test_chartxlsx.cpp tests/test_fill.cpp tests/test_pdf.cpp tests/test_tui.cpp tests/test_refshift.cpp tests/test_numfmt.cpp tests/test_style.cpp tests/test_smoke.cpp tests/test_cf.cpp tests/test_dv.cpp tests/test_note.cpp tests/test_shared.cpp tests/test_view.cpp tests/test_image.cpp tests/test_definedname.cpp tests/test_depgraph.cpp tests/test_robust.cpp tests/test_stress.cpp tests/bench.cpp tools/chartdemo.cpp tools/numfmtdemo.cpp tools/styledemo.cpp tools/cfdemo.cpp tools/dvdemo.cpp tools/notedemo.cpp tools/viewdemo.cpp tools/imagedemo.cpp tools/dndemo.cpp
-TEST_BIN := tests/xltest tests/xltest2 tests/xlsxlt tests/chartt tests/fillt tests/pdft tests/tuit tests/refshiftt tests/numfmtt tests/stylet tests/cft tests/dvt tests/notet tests/sharedt tests/viewt tests/imgt tests/dnt tests/dept tests/auditt tests/smoket tests/robustt tests/stresst tests/xlbench tools/chartdemo tools/xlsxdemo
+TEST_SRC := tests/test_new.cpp tests/test_new2.cpp tests/test_xlsx.cpp tests/test_chartxlsx.cpp tests/test_fill.cpp tests/test_pdf.cpp tests/test_tui.cpp tests/test_refshift.cpp tests/test_numfmt.cpp tests/test_style.cpp tests/test_smoke.cpp tests/test_cf.cpp tests/test_dv.cpp tests/test_note.cpp tests/test_shared.cpp tests/test_view.cpp tests/test_image.cpp tests/test_definedname.cpp tests/test_depgraph.cpp tests/test_edit.cpp tests/test_robust.cpp tests/test_stress.cpp tests/bench.cpp tools/chartdemo.cpp tools/numfmtdemo.cpp tools/styledemo.cpp tools/cfdemo.cpp tools/dvdemo.cpp tools/notedemo.cpp tools/viewdemo.cpp tools/imagedemo.cpp tools/dndemo.cpp
+TEST_BIN := tests/xltest tests/xltest2 tests/xlsxlt tests/chartt tests/fillt tests/pdft tests/tuit tests/refshiftt tests/numfmtt tests/stylet tests/cft tests/dvt tests/notet tests/sharedt tests/viewt tests/imgt tests/dnt tests/dept tests/editt tests/auditt tests/smoket tests/robustt tests/stresst tests/xlbench tools/chartdemo tools/xlsxdemo
 
 all: $(TARGET)
 
@@ -107,22 +107,25 @@ tests/cft: tests/test_cf.cpp $(filter-out src/main.o,$(OBJS))
 tests/dvt: tests/test_dv.cpp $(filter-out src/main.o,$(OBJS))
 	$(CXX) $(CXXFLAGS) -o $@ $< $(filter-out src/main.o,$(OBJS)) -lz
 
-tests/notet: tests/test_note.cpp tests/test_shared.cpp tests/test_view.cpp tests/test_image.cpp tests/test_definedname.cpp tests/test_depgraph.cpp $(filter-out src/main.o,$(OBJS))
+tests/notet: tests/test_note.cpp tests/test_shared.cpp tests/test_view.cpp tests/test_image.cpp tests/test_definedname.cpp tests/test_depgraph.cpp tests/test_edit.cpp $(filter-out src/main.o,$(OBJS))
 	$(CXX) $(CXXFLAGS) -o $@ $< $(filter-out src/main.o,$(OBJS)) -lz
 
-tests/sharedt: tests/test_shared.cpp tests/test_view.cpp tests/test_image.cpp tests/test_definedname.cpp tests/test_depgraph.cpp $(filter-out src/main.o,$(OBJS))
+tests/sharedt: tests/test_shared.cpp tests/test_view.cpp tests/test_image.cpp tests/test_definedname.cpp tests/test_depgraph.cpp tests/test_edit.cpp $(filter-out src/main.o,$(OBJS))
 	$(CXX) $(CXXFLAGS) -o $@ $< $(filter-out src/main.o,$(OBJS)) -lz
 
-tests/viewt: tests/test_view.cpp tests/test_image.cpp tests/test_definedname.cpp tests/test_depgraph.cpp $(filter-out src/main.o,$(OBJS))
+tests/viewt: tests/test_view.cpp tests/test_image.cpp tests/test_definedname.cpp tests/test_depgraph.cpp tests/test_edit.cpp $(filter-out src/main.o,$(OBJS))
 	$(CXX) $(CXXFLAGS) -o $@ $< $(filter-out src/main.o,$(OBJS)) -lz
 
-tests/imgt: tests/test_image.cpp tests/test_definedname.cpp tests/test_depgraph.cpp $(filter-out src/main.o,$(OBJS))
+tests/imgt: tests/test_image.cpp tests/test_definedname.cpp tests/test_depgraph.cpp tests/test_edit.cpp $(filter-out src/main.o,$(OBJS))
 	$(CXX) $(CXXFLAGS) -o $@ $< $(filter-out src/main.o,$(OBJS)) -lz
 
-tests/dnt: tests/test_definedname.cpp tests/test_depgraph.cpp $(filter-out src/main.o,$(OBJS))
+tests/dnt: tests/test_definedname.cpp tests/test_depgraph.cpp tests/test_edit.cpp $(filter-out src/main.o,$(OBJS))
 	$(CXX) $(CXXFLAGS) -o $@ $< $(filter-out src/main.o,$(OBJS)) -lz
 
 tests/dept: tests/test_depgraph.cpp $(filter-out src/main.o,$(OBJS))
+	$(CXX) $(CXXFLAGS) -o $@ tests/test_depgraph.cpp $(filter-out src/main.o,$(OBJS)) -lz
+
+tests/editt: tests/test_edit.cpp $(filter-out src/main.o,$(OBJS))
 	$(CXX) $(CXXFLAGS) -o $@ $< $(filter-out src/main.o,$(OBJS)) -lz
 
 tests/robustt: tests/test_robust.cpp $(filter-out src/main.o,$(OBJS))
@@ -135,7 +138,7 @@ tests/xlbench: tests/bench.cpp $(filter-out src/main.o,$(OBJS))
 	$(CXX) $(CXXFLAGS) -o $@ tests/bench.cpp $(filter-out src/main.o,$(OBJS)) -lz
 
 # 跑全部语义测试（Excel 行为 + 新函数）
-test: $(TARGET) tests/xltest tests/xltest2 tests/xlsxlt tests/chartt tests/fillt tests/pdft tests/tuit tests/refshiftt tests/numfmtt tests/stylet tests/cft tests/dvt tests/notet tests/sharedt tests/viewt tests/imgt tests/dnt tests/dept tests/auditt tests/smoket tests/robustt tests/stresst
+test: $(TARGET) tests/xltest tests/xltest2 tests/xlsxlt tests/chartt tests/fillt tests/pdft tests/tuit tests/refshiftt tests/numfmtt tests/stylet tests/cft tests/dvt tests/notet tests/sharedt tests/viewt tests/imgt tests/dnt tests/dept tests/editt tests/auditt tests/smoket tests/robustt tests/stresst
 	./$(TARGET) --test
 	@echo ""
 	./tests/xltest
@@ -166,6 +169,7 @@ test: $(TARGET) tests/xltest tests/xltest2 tests/xlsxlt tests/chartt tests/fillt
 	./tests/imgt
 	./tests/dnt
 	./tests/dept
+	./tests/editt
 	@echo ""
 	./tests/auditt
 	./tests/robustt

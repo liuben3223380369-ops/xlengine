@@ -127,6 +127,50 @@ ShiftResult shiftFormula(const std::string& formula, int dc, int dr,
     return res;
 }
 
+ShiftResult shiftFormulaAt(const std::string& formula, int axis, int at, int delta,
+                           int maxCol, int maxRow) {
+    ShiftResult res;
+    if (formula.empty() || delta == 0) { res.text = formula; return res; }
+
+    Lexer lx(formula);
+    std::string err;
+    std::vector<Token> toks = lx.run(err);
+    if (!err.empty()) { res.ok = false; res.error = err; res.text = formula; return res; }
+
+    std::string out;
+    size_t cur = 0;
+    for (const Token& tk : toks) {
+        if (tk.t != Tok::Ref) continue;
+        out.append(formula, cur, tk.pos - cur);
+
+        RefPart r = tk.ref;
+        int pos = (axis == 0) ? r.col : r.row;
+        bool abs = (axis == 0) ? r.colAbs : r.rowAbs;
+
+        // 删除时，落在被删区间里的引用要变成 #REF!，而不是简单平移
+        bool removed = false;
+        if (delta < 0 && pos >= at && pos < at - delta) removed = true;
+        // 插入时位置 >= at 才后移；删除时位置 >= at 才前移
+        bool shouldMove = (delta > 0) ? (pos >= at) : (pos >= at);
+
+        if (!abs && shouldMove && !removed) {
+            if (axis == 0) r.col += delta; else r.row += delta;
+        }
+
+        bool bad = removed || r.col < 0 || r.col > maxCol || r.row < 0 || r.row > maxRow;
+        if (bad) {
+            out += "#REF!";
+            res.refErrors++;
+        } else {
+            out += refToText(r);
+        }
+        cur = tk.end;
+    }
+    if (cur < formula.size()) out.append(formula, cur, std::string::npos);
+    res.text = out;
+    return res;
+}
+
 bool hasRelativeRef(const std::string& formula) {
     Lexer lx(formula);
     std::string err;

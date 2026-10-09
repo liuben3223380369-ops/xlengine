@@ -102,6 +102,15 @@ public:
     CellRec* find(int col, int row);
     const CellRec* find(int col, int row) const;
 
+    // ---- 结构性编辑：插入 / 删除行与列 ----
+    // 定义在 edit.cpp。会挪动内容、重写公式引用，并作废全部缓存。
+    void insertRows(int at, int count);
+    void insertCols(int at, int count);
+    void deleteRows(int at, int count);
+    void deleteCols(int at, int count);
+    // axis: 0 = 按列，1 = 按行；delta > 0 插入，< 0 删除
+    void shiftContent(int axis, int at, int delta);
+
     // 全量重算（清空缓存）。语义简单、绝对正确，但改动一格也要重算整表。
     // 交互场景请用 recalcDirty()。
     void recalc();

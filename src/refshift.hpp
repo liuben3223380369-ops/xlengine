@@ -39,6 +39,22 @@ struct ShiftResult {
 ShiftResult shiftFormula(const std::string& formula, int dc, int dr,
                          int maxCol = 16383, int maxRow = 1048575);
 
+// ---------------------------------------------------------------------------
+// 插入 / 删除行列时的引用重写
+// ---------------------------------------------------------------------------
+// 与整体平移 shiftFormula 的区别：这里只有"位置在阈值之后"的引用才动。
+//
+// 在第 3 行插入 1 行时：
+//     =A1+1   不动（A1 在插入点之前）
+//     =A3+1   -> =A4+1（原本指向第 3 行，被挤到下面去了）
+//     =$A$3+1 不动（绝对引用不随插入移动，这是 Excel 的行为）
+//
+// axis: 0 = 按列，1 = 按行
+// at:   插入/删除发生的位置
+// delta: 位移量（插入为正，删除为负）
+ShiftResult shiftFormulaAt(const std::string& formula, int axis, int at, int delta,
+                           int maxCol = 16383, int maxRow = 1048575);
+
 // 只判断公式里是否含可平移的引用（用于决定"填充"是否有意义）
 bool hasRelativeRef(const std::string& formula);
 

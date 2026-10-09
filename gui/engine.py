@@ -98,6 +98,8 @@ _lib.xl_col_width.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int]
 _lib.xl_row_height.restype = ctypes.c_double
 _lib.xl_row_height.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int]
 _lib.xl_set_freeze.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int]
+_lib.xl_get_freeze.argtypes = [ctypes.c_void_p, ctypes.c_int,
+                               ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int)]
 _lib.xl_set_autofilter.argtypes = [ctypes.c_void_p, ctypes.c_int,
                                    ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int]
 _lib.xl_merge.argtypes = [ctypes.c_void_p, ctypes.c_int,
@@ -293,6 +295,14 @@ class Sheet:
     def row_height(self, row):
         return _lib.xl_row_height(self._wb._p, self._i, row)
 
+    def freeze(self):
+        """(冻结列数, 冻结行数)"""
+        c, r = ctypes.c_int(), ctypes.c_int()
+        if _lib.xl_get_freeze(self._wb._p, self._i,
+                              ctypes.byref(c), ctypes.byref(r)) != 0:
+            return (0, 0)
+        return (c.value, r.value)
+
     def merge(self, c0, r0, c1, r1):
         _lib.xl_merge(self._wb._p, self._i, c0, r0, c1, r1)
 
@@ -311,6 +321,27 @@ class Sheet:
         """
         return _lib.xl_fill(self._wb._p, self._i, srcC0, srcR0, srcC1, srcR1,
                             dstC0, dstR0, cols, rows)
+
+    # ---- 结构性编辑 ----
+    def insert_rows(self, at, count=1):
+        return _lib.xl_insert_rows(self._wb._p, self._i, at, count) == 0
+
+    def insert_cols(self, at, count=1):
+        return _lib.xl_insert_cols(self._wb._p, self._i, at, count) == 0
+
+    def delete_rows(self, at, count=1):
+        return _lib.xl_delete_rows(self._wb._p, self._i, at, count) == 0
+
+    def delete_cols(self, at, count=1):
+        return _lib.xl_delete_cols(self._wb._p, self._i, at, count) == 0
+
+    def unmerge(self, c0, r0, c1, r1):
+        """返回 True 表示确实取消了合并；False 表示该处本来就没合并。"""
+        return _lib.xl_unmerge(self._wb._p, self._i, c0, r0, c1, r1) == 0
+
+    def export_pdf(self, path, font_path="", landscape=False):
+        return _lib.xl_export_pdf(self._wb._p, self._i, _e(str(path)),
+                                  _e(font_path), 1 if landscape else 0) == 0
 
     def add_chart(self, chart_type, c0, r0, c1, r1, title="",
                   has_header=True, series_in_rows=False):
@@ -393,6 +424,15 @@ class Workbook:
 
 _lib.xl_func_names.restype = ctypes.c_void_p
 _lib.xl_func_names.argtypes = []
+
+_lib.xl_insert_rows.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int]
+_lib.xl_insert_cols.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int]
+_lib.xl_delete_rows.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int]
+_lib.xl_delete_cols.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int]
+_lib.xl_unmerge.argtypes = [ctypes.c_void_p, ctypes.c_int,
+                            ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int]
+_lib.xl_export_pdf.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_char_p,
+                               ctypes.c_char_p, ctypes.c_int]
 
 
 def func_count():

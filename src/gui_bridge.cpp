@@ -13,12 +13,14 @@
 //   - 返回 int 的函数：0 表示成功，非 0 表示失败（错误文本用 xl_last_error 取）
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <string>
 #include <vector>
 
 #include "sheet.hpp"
 #include "xlsx.hpp"
 #include "chart.hpp"
+#include "sheetpdf.hpp"
 #include "style.hpp"
 #include "value.hpp"
 #include "functions.hpp"
@@ -344,6 +346,16 @@ int xl_set_freeze(void* wb, int sheet, int cols, int rows) {
     return 0;
 }
 
+// 读取冻结设置（UI 要画冻结线，所以得能读回来）
+int xl_get_freeze(void* wb, int sheet, int* cols, int* rows) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->sheetCount()) { g_lastError = "表索引越界"; return 1; }
+    const xl::SheetLayout& lay = w->layout(sheet);
+    if (cols) *cols = lay.freeze.enabled ? lay.freeze.frozenCols : 0;
+    if (rows) *rows = lay.freeze.enabled ? lay.freeze.frozenRows : 0;
+    return 0;
+}
+
 int xl_set_autofilter(void* wb, int sheet, int c0, int r0, int c1, int r1) {
     xl::Workbook* w = (xl::Workbook*)wb;
     if (!w || sheet < 0 || sheet >= (int)w->sheetCount()) { g_lastError = "表索引越界"; return 1; }
@@ -457,6 +469,80 @@ int xl_fill(void* wb, int sheet, int srcC0, int srcR0, int srcC1, int srcR1,
     xl::FillResult res = xl::fillRange(w->sheet((size_t)sheet), req);
     if (!res.error.empty()) { g_lastError = res.error; return -1; }
     return res.written;
+}
+
+// ---- 结构性编辑 ----
+int xl_insert_rows(void* wb, int sheet, int at, int count) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->sheetCount()) { g_lastError = "表索引越界"; return 1; }
+    if (at < 0 || count <= 0) { g_lastError = "参数无效"; return 1; }
+    w->insertRows(sheet, at, count);
+    return 0;
+}
+
+int xl_insert_cols(void* wb, int sheet, int at, int count) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->sheetCount()) { g_lastError = "表索引越界"; return 1; }
+    if (at < 0 || count <= 0) { g_lastError = "参数无效"; return 1; }
+    w->insertCols(sheet, at, count);
+    return 0;
+}
+
+int xl_delete_rows(void* wb, int sheet, int at, int count) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->sheetCount()) { g_lastError = "表索引越界"; return 1; }
+    if (at < 0 || count <= 0) { g_lastError = "参数无效"; return 1; }
+    w->deleteRows(sheet, at, count);
+    return 0;
+}
+
+int xl_delete_cols(void* wb, int sheet, int at, int count) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->sheetCount()) { g_lastError = "表索引越界"; return 1; }
+    if (at < 0 || count <= 0) { g_lastError = "参数无效"; return 1; }
+    w->deleteCols(sheet, at, count);
+    return 0;
+}
+
+int xl_unmerge(void* wb, int sheet, int c0, int r0, int c1, int r1) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->sheetCount()) { g_lastError = "表索引越界"; return 1; }
+    // 返回 0 表示确实取消了合并，1 表示该位置本来就没合并 —— 界面要区分提示
+    return w->unmerge(sheet, c0, r0, c1, r1) ? 0 : 1;
+}
+
+// ---- PDF 导出 ----
+// 只导出单张表。多表合并需要一个能追加页面的 PDF writer，
+// 现有 sheetToPdf 每次调用都新建文件，硬凑会把前面的页覆盖掉。
+int xl_export_pdf(void* wb, int sheet, const char* path,
+                  const char* fontPath, int landscape) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->sheetCount()) { g_lastError = "表索引越界"; return 1; }
+    xl::Sheet& sh = w->sheet((size_t)sheet);
+    // 逐格取一次值触发求值，否则公式格导出的是空
+    for (auto& kv : sh.allCells()) sh.valueAt(kv.first.first, kv.first.second);
+
+    xl::SheetPdfOptions o;
+    o.landscape = landscape != 0;
+    o.title = (sheet < (int)w->sheetNames().size()) ? w->sheetNames()[(size_t)sheet]
+                                                         : ("Sheet" + std::to_string(sheet + 1));
+    std::string fp = fontPath ? fontPath : "";
+    if (fp.empty()) {
+        // 没指定就找常见中文字体；找不到就退化（中文会缺字，但不失败）
+        const char* cand[] = {
+            "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        };
+        for (auto c : cand) { std::ifstream t(c); if (t) { fp = c; break; } }
+    }
+    o.fontPath = fp;
+    std::string err;
+    if (!xl::sheetToPdf(sh, path ? path : "", o, err)) {
+        g_lastError = err.empty() ? "导出失败" : err;
+        return 1;
+    }
+    return 0;
 }
 
 // ---- 引擎自检 ----
