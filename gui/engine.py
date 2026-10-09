@@ -412,6 +412,11 @@ class Workbook:
     def sheet_names(self):
         return [self.sheet_name(i) for i in range(self.sheet_count)]
 
+    def export_pdf_all(self, path, font_path="", landscape=False):
+        """全部工作表导出到一个 PDF。返回导出的表数，-1 表示失败。"""
+        return _lib.xl_export_pdf_all(self._p, _e(str(path)), _e(font_path),
+                                      1 if landscape else 0)
+
     def add_sheet(self, name=""):
         return _lib.xl_wb_add_sheet(self._p, _e(name))
 
@@ -431,6 +436,7 @@ _lib.xl_delete_rows.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, cty
 _lib.xl_delete_cols.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int]
 _lib.xl_unmerge.argtypes = [ctypes.c_void_p, ctypes.c_int,
                             ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int]
+_lib.xl_export_pdf_all.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
 _lib.xl_export_pdf.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_char_p,
                                ctypes.c_char_p, ctypes.c_int]
 

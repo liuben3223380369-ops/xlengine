@@ -13,6 +13,8 @@
 
 namespace xl {
 
+class Workbook;   // 前向声明，避免 sheetpdf.hpp 反向依赖 xlsx.hpp
+
 struct SheetPdfOptions {
     bool landscape = false;          // 横向（默认纵向）
     bool gridLines = true;
@@ -30,5 +32,11 @@ struct SheetPdfOptions {
 // sheet -> PDF。返回 false 时 err 说明原因
 bool sheetToPdf(Sheet& sh, const std::string& outPath,
                 const SheetPdfOptions& opt, std::string& err);
+
+// 多表导出：所有工作表依次追加到同一个 PDF。
+// outSheets 返回实际导出的表数（空表跳过）。
+bool workbookToPdf(Workbook& wb, const std::string& outPath,
+                   const SheetPdfOptions& opt, std::string& err,
+                   int* outSheets = nullptr);
 
 } // namespace xl

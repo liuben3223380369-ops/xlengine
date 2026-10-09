@@ -96,6 +96,9 @@ class GridView(QAbstractScrollArea):
         self._drag_fill = None   # 填充柄拖动中的目标区域
         self._drag_select = False
         self._resizing = None    # ('col'|'row', index, start_pos)
+        self._frozen_cols = 0    # 冻结窗格：左侧列数 / 顶部行数
+        self._filter_cols = set()  # 自动筛选覆盖的列（画下拉箭头用）
+        self._frozen_rows = 0
 
         self._font = QFont()
         self._font.setPointSize(10)
@@ -121,11 +124,51 @@ class GridView(QAbstractScrollArea):
         self.sheet_index = idx
         self._col_widths.clear()
         self._row_heights.clear()
+        self._refresh_freeze()
         self.anchor_col = self.anchor_row = 0
         self.cursor_col = self.cursor_row = 0
         self._update_scrollbars()
         self.viewport().update()
         self.selectionChanged.emit()
+
+    def _refresh_freeze(self):
+        """从引擎读冻结设置。切换表、设置冻结后都要调。"""
+        try:
+            self._frozen_cols, self._frozen_rows = self.sheet.freeze()
+        except Exception:
+            self._frozen_cols, self._frozen_rows = 0, 0
+
+    def set_filter(self, c0, r0, c1, r1):
+        """设置自动筛选并立即画出箭头。"""
+        try:
+            engine._lib.xl_set_autofilter(self.wb._p, self.sheet_index, c0, r0, c1, r1)
+        except Exception:
+            pass
+        self._filter_cols = set(range(c0, c1 + 1))
+        self.viewport().update()
+
+    def set_freeze(self, cols, rows):
+        """设置冻结并立即生效。"""
+        if cols == self._frozen_cols and rows == self._frozen_rows:
+            return
+        try:
+            engine._lib.xl_set_freeze(self.wb._p, self.sheet_index, cols, rows)
+        except Exception:
+            pass
+        self._frozen_cols, self._frozen_rows = cols, rows
+        self._update_scrollbars()
+        self.viewport().update()
+
+    def frozen_w(self):
+        """冻结列区占的像素宽度。"""
+        if not self._frozen_cols:
+            return 0
+        return sum(self.col_w(c) for c in range(self._frozen_cols))
+
+    def frozen_h(self):
+        if not self._frozen_rows:
+            return 0
+        return sum(self.row_h(r) for r in range(self._frozen_rows))
 
     def col_w(self, col):
         return self._col_widths.get(col, DEF_COL_W)
@@ -182,9 +225,19 @@ class GridView(QAbstractScrollArea):
     # 坐标换算
     # ------------------------------------------------------------------
     def col_at_x(self, x):
-        """像素 x -> 列号。含行号栏的偏移。"""
-        pos = HEADER_W + self.horizontalScrollBar().value()
-        # 先补偿滚动偏移
+        """屏幕 x -> 列号。
+
+        冻结列不参与滚动，所以落在冻结区里要按"无偏移"反查；
+        落在滚动区才补偿滚动偏移。两者混在一起算会让冻结区里的点击错位。
+        """
+        fw = self.frozen_w()
+        if self._frozen_cols and x < HEADER_W + fw and x >= HEADER_W:
+            acc = HEADER_W
+            for c in range(self._frozen_cols):
+                if x < acc + self.col_w(c):
+                    return c
+                acc += self.col_w(c)
+            return self._frozen_cols - 1
         x += self.horizontalScrollBar().value()
         col = 0
         acc = HEADER_W
@@ -196,6 +249,14 @@ class GridView(QAbstractScrollArea):
             col += 1
 
     def row_at_y(self, y):
+        fh = self.frozen_h()
+        if self._frozen_rows and y < HEADER_H + fh and y >= HEADER_H:
+            acc = HEADER_H
+            for r in range(self._frozen_rows):
+                if y < acc + self.row_h(r):
+                    return r
+                acc += self.row_h(r)
+            return self._frozen_rows - 1
         y += self.verticalScrollBar().value()
         row = 0
         acc = HEADER_H
@@ -210,12 +271,17 @@ class GridView(QAbstractScrollArea):
         acc = HEADER_W
         for c in range(col):
             acc += self.col_w(c)
+        # 冻结列不减滚动偏移 —— 这就是"冻结"的全部秘密
+        if col < self._frozen_cols:
+            return acc
         return acc - self.horizontalScrollBar().value()
 
     def y_of_row(self, row):
         acc = HEADER_H
         for r in range(row):
             acc += self.row_h(r)
+        if row < self._frozen_rows:
+            return acc
         return acc - self.verticalScrollBar().value()
 
     def cell_rect(self, col, row):
@@ -257,89 +323,116 @@ class GridView(QAbstractScrollArea):
         self.selectionChanged.emit()
 
     def _ensure_visible(self, col, row):
+        """滚动到让 (col,row) 可见。
+
+        冻结区会盖住左上角，所以"可见"的边界不是 HEADER_W/HEADER_H，
+        而是冻结区的外沿 —— 否则目标格会被冻结区挡住，看起来没滚过去。
+        """
         vp = self.viewport().rect()
+        fw, fh = self.frozen_w(), self.frozen_h()
+        left = HEADER_W + fw
+        top = HEADER_H + fh
         x, y = self.x_of_col(col), self.y_of_row(row)
         w, h = self.col_w(col), self.row_h(row)
         hsb, vsb = self.horizontalScrollBar(), self.verticalScrollBar()
-        if x < HEADER_W:
-            hsb.setValue(hsb.value() + x - HEADER_W)
-        elif x + w > vp.width():
-            hsb.setValue(hsb.value() + x + w - vp.width() + 2)
-        if y < HEADER_H:
-            vsb.setValue(vsb.value() + y - HEADER_H)
-        elif y + h > vp.height():
-            vsb.setValue(vsb.value() + y + h - vp.height() + 2)
+        # 冻结列不用滚，它本来就一直可见
+        if col >= self._frozen_cols:
+            if x < left:
+                hsb.setValue(hsb.value() + x - left)
+            elif x + w > vp.width():
+                hsb.setValue(hsb.value() + x + w - vp.width() + 2)
+        if row >= self._frozen_rows:
+            if y < top:
+                vsb.setValue(vsb.value() + y - top)
+            elif y + h > vp.height():
+                vsb.setValue(vsb.value() + y + h - vp.height() + 2)
 
     # ------------------------------------------------------------------
     # 绘制
     # ------------------------------------------------------------------
     def paintEvent(self, ev):
+        """分四个区域绘制。
+
+        冻结窗格把视口切成田字格：
+            A 冻列×冻行（不动）  B 滚列×冻行（横向滚）
+            C 冻列×滚行（纵向滚） D 滚列×滚行（双向滚）
+
+        每个区域单独 setClipRect 再画，这样滚出去的格子自然被裁掉，
+        而冻结区始终保持在原位。一次性画整个视口是做不到"部分不动"的。
+        """
         p = QPainter(self.viewport())
         p.setFont(self._font)
         vp = self.viewport().rect()
 
-        c0, r0, c1, r1 = self.visible_range()
-        # 多画一行一列，避免边缘半格
-        c1 += 1
-        r1 += 1
-
+        fw, fh = self.frozen_w(), self.frozen_h()
+        fc, fr = self._frozen_cols, self._frozen_rows
         sc0, sr0, sc1, sr1 = self.sel_rect()
 
-        # 1) 单元格内容（先画，网格线画在上面）
-        for r in range(r0, r1 + 1):
-            y = self.y_of_row(r)
-            if y > vp.height():
-                break
-            h = self.row_h(r)
-            for c in range(c0, c1 + 1):
-                x = self.x_of_col(c)
-                if x > vp.width():
+        # 四个区域的屏幕矩形
+        ax0, ay0 = HEADER_W, HEADER_H
+        areas = []
+        if fc and fr:
+            areas.append((ax0, ay0, fw, fh, 0, 0, fc - 1, fr - 1))
+        if fr:
+            areas.append((ax0 + fw, ay0, vp.width() - ax0 - fw, fh,
+                          self.col_at_x(ax0 + fw + 1), 0,
+                          self.col_at_x(vp.width() - 1), fr - 1))
+        if fc:
+            areas.append((ax0, ay0 + fh, fw, vp.height() - ay0 - fh,
+                          0, self.row_at_y(ay0 + fh + 1),
+                          fc - 1, self.row_at_y(vp.height() - 1)))
+        areas.append((ax0 + fw, ay0 + fh,
+                      vp.width() - ax0 - fw, vp.height() - ay0 - fh,
+                      self.col_at_x(ax0 + fw + 1) if fc else self.col_at_x(ax0 + 1),
+                      self.row_at_y(ay0 + fh + 1) if fr else self.row_at_y(ay0 + 1),
+                      self.col_at_x(vp.width() - 1),
+                      self.row_at_y(vp.height() - 1)))
+
+        for (x0, y0, aw, ah, c0, r0, c1, r1) in areas:
+            if aw <= 0 or ah <= 0:
+                continue
+            clip = QRect(int(x0), int(y0), int(aw), int(ah))
+            p.setClipRect(clip)
+            c1 = max(c1, c0) + 1
+            r1 = max(r1, r0) + 1
+            for r in range(r0, min(r1, r0 + 400)):
+                y = self.y_of_row(r)
+                if y > y0 + ah:
                     break
-                w = self.col_w(c)
-                rect = QRect(x, y, w, h)
-                if not rect.intersects(vp):
-                    continue
-                self._paint_cell(p, c, r, rect, (sc0, sr0, sc1, sr1))
+                h = self.row_h(r)
+                for c in range(c0, min(c1, c0 + 200)):
+                    x = self.x_of_col(c)
+                    if x > x0 + aw:
+                        break
+                    rect = QRect(x, y, self.col_w(c), h)
+                    if rect.intersects(clip):
+                        self._paint_cell(p, c, r, rect, (sc0, sr0, sc1, sr1))
+            # 网格线
+            p.setPen(QPen(GRID_LINE, 1))
+            x = self.x_of_col(c0)
+            for c in range(c0, min(c1 + 2, c0 + 202)):
+                p.drawLine(x, y0, x, y0 + ah)
+                x += self.col_w(c)
+            y = self.y_of_row(r0)
+            for r in range(r0, min(r1 + 2, r0 + 402)):
+                p.drawLine(x0, y, x0 + aw, y)
+                y += self.row_h(r)
+            p.setClipRect(vp)
 
-        # 2) 网格线
-        p.setPen(QPen(GRID_LINE, 1))
-        x = self.x_of_col(c0)
-        for c in range(c0, c1 + 2):
-            p.drawLine(x, HEADER_H, x, vp.height())
-            x += self.col_w(c)
-        y = self.y_of_row(r0)
-        for r in range(r0, r1 + 2):
-            p.drawLine(HEADER_W, y, vp.width(), y)
-            y += self.row_h(r)
-
-        # 3) 选区与光标（画在网格线之上，否则会被线切断）
         self._paint_selection(p, sc0, sr0, sc1, sr1)
-
-        # 4) 冻结线（在网格线之上、表头之下）
-        self._paint_freeze(p, vp)
-
-        # 5) 表头（最后画，盖住滚动出去的部分）
-        self._paint_headers(p, c0, c1, r0, r1, vp)
+        if fc or fr:
+            self._paint_freeze(p, vp)
+        self._paint_headers(p, vp)
         p.end()
 
     def _paint_freeze(self, p, vp):
-        """画冻结分隔线。
-
-        真正的冻结（滚动时前几行不动）需要另一套绘制通道；
-        这里先画出那条线，让用户知道冻结在哪儿。
-        """
-        fcols, frows = self.sheet.freeze()
-        if not fcols and not frows:
-            return
+        """冻结区的外沿加粗线，让用户一眼看出冻结在哪儿。"""
+        fw, fh = self.frozen_w(), self.frozen_h()
         p.setPen(QPen(QColor("#1a73e8"), 2))
-        if fcols:
-            x = self.x_of_col(fcols)
-            if HEADER_W < x < vp.width():
-                p.drawLine(x, HEADER_H, x, vp.height())
-        if frows:
-            y = self.y_of_row(frows)
-            if HEADER_H < y < vp.height():
-                p.drawLine(HEADER_W, y, vp.width(), y)
+        if self._frozen_cols and HEADER_W + fw < vp.width():
+            p.drawLine(HEADER_W + fw, HEADER_H, HEADER_W + fw, vp.height())
+        if self._frozen_rows and HEADER_H + fh < vp.height():
+            p.drawLine(HEADER_W, HEADER_H + fh, vp.width(), HEADER_H + fh)
 
     def _paint_cell(self, p, col, row, rect, sel):
         sc0, sr0, sc1, sr1 = sel
@@ -430,61 +523,68 @@ class GridView(QAbstractScrollArea):
             p.setPen(QPen(SELECT_BORDER, 1, Qt.DashLine))
             p.drawRect(QRect(x0, y0, x1 - x0, y1 - y0).adjusted(0, 0, -1, -1))
 
-    def _paint_headers(self, p, c0, c1, r0, r1, vp):
+    def _paint_headers(self, p, vp):
+        """列标栏 + 行号栏。
+
+        自己算可见范围，不再依赖 paintEvent 传入 —— 现在有四个绘制区，
+        表头是统一画在最上层的。
+        """
         p.setPen(Qt.NoPen)
         p.setBrush(QBrush(HEADER_BG))
-
-        # 左上角方块
         p.drawRect(QRect(0, 0, HEADER_W, HEADER_H))
-        # 列标栏
         p.drawRect(QRect(HEADER_W, 0, vp.width() - HEADER_W, HEADER_H))
-        # 行号栏
         p.drawRect(QRect(0, HEADER_H, HEADER_W, vp.height() - HEADER_H))
 
         sc0, sr0, sc1, sr1 = self.sel_rect()
+        fw, fh = self.frozen_w(), self.frozen_h()
+        fc, fr = self._frozen_cols, self._frozen_rows
 
-        p.setPen(QPen(HEADER_FG))
+        # 列标：冻结列 + 可见的滚动列
+        cols = list(range(fc)) + list(range(
+            max(fc, self.col_at_x(HEADER_W + fw + 1)),
+            self.col_at_x(vp.width() - 1) + 2))
         p.setFont(self._font)
-        # 列标
-        x = self.x_of_col(c0)
-        for c in range(c0, c1 + 2):
+        for c in cols:
+            x = self.x_of_col(c)
             w = self.col_w(c)
-            if x > vp.width():
-                break
-            if x + w < HEADER_W:
-                x += w
+            if x + w <= HEADER_W or x >= vp.width():
                 continue
-            if sc0 <= c <= sc1:
-                p.setPen(QPen(SELECT_BORDER))
-                p.setFont(_bold(self._font))
-            else:
-                p.setPen(QPen(HEADER_FG))
-                p.setFont(self._font)
+            # 被冻结区遮住的滚动列不画（它本来就在冻结区底下）
+            if fc and c >= fc and x < HEADER_W + fw:
+                continue
+            sel = sc0 <= c <= sc1
+            p.setPen(QPen(SELECT_BORDER if sel else HEADER_FG))
+            p.setFont(_bold(self._font) if sel else self._font)
             p.drawText(QRect(x, 0, w, HEADER_H), Qt.AlignCenter, col_name(c))
-            x += w
+            # 自动筛选箭头
+            if self._filter_cols and c in self._filter_cols:
+                self._paint_filter_arrow(p, x + w - 9, HEADER_H // 2 - 2)
 
-        # 行号
-        y = self.y_of_row(r0)
-        for r in range(r0, r1 + 2):
+        rows = list(range(fr)) + list(range(
+            max(fr, self.row_at_y(HEADER_H + fh + 1)),
+            self.row_at_y(vp.height() - 1) + 2))
+        for r in rows:
+            y = self.y_of_row(r)
             h = self.row_h(r)
-            if y > vp.height():
-                break
-            if y + h < HEADER_H:
-                y += h
+            if y + h <= HEADER_H or y >= vp.height():
                 continue
-            if sr0 <= r <= sr1:
-                p.setPen(QPen(SELECT_BORDER))
-                p.setFont(_bold(self._font))
-            else:
-                p.setPen(QPen(HEADER_FG))
-                p.setFont(self._font)
+            if fr and r >= fr and y < HEADER_H + fh:
+                continue
+            sel = sr0 <= r <= sr1
+            p.setPen(QPen(SELECT_BORDER if sel else HEADER_FG))
+            p.setFont(_bold(self._font) if sel else self._font)
             p.drawText(QRect(0, y, HEADER_W, h), Qt.AlignCenter, str(r + 1))
-            y += h
 
         p.setFont(self._font)
         p.setPen(QPen(HEADER_LINE, 1))
         p.drawLine(0, HEADER_H, vp.width(), HEADER_H)
         p.drawLine(HEADER_W, 0, HEADER_W, vp.height())
+
+    def _paint_filter_arrow(self, p, x, y):
+        """筛选下拉箭头：一个小三角。"""
+        p.setPen(Qt.NoPen)
+        p.setBrush(QBrush(QColor("#666666")))
+        p.drawPolygon([QPoint(x, y), QPoint(x + 7, y), QPoint(x + 3, y + 4)])
 
     # ------------------------------------------------------------------
     # 编辑
@@ -858,6 +958,7 @@ class GridView(QAbstractScrollArea):
             self.statusMessage.emit("已删除 %s–%s 列" % (col_name(c0), col_name(c1)))
         else:
             self.statusMessage.emit("删除失败: " + self.wb.last_error)
+
 
 
 def _qcolor(rrggbb):

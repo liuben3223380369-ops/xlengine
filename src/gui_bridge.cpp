@@ -471,6 +471,31 @@ int xl_fill(void* wb, int sheet, int srcC0, int srcR0, int srcC1, int srcR1,
     return res.written;
 }
 
+// 全部工作表导出到一个 PDF。返回导出的表数（<0 失败）
+int xl_export_pdf_all(void* wb, const char* path, const char* fontPath, int landscape) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w) { g_lastError = "工作簿为空"; return -1; }
+    std::string fp = fontPath ? fontPath : "";
+    if (fp.empty()) {
+        const char* cand[] = {
+            "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        };
+        for (auto c : cand) { std::ifstream t(c); if (t) { fp = c; break; } }
+    }
+    xl::SheetPdfOptions o;
+    o.landscape = landscape != 0;
+    o.fontPath = fp;
+    int done = 0;
+    std::string err;
+    if (!xl::workbookToPdf(*w, path ? path : "", o, err, &done)) {
+        g_lastError = err.empty() ? "导出失败" : err;
+        return -1;
+    }
+    return done;
+}
+
 // ---- 结构性编辑 ----
 int xl_insert_rows(void* wb, int sheet, int at, int count) {
     xl::Workbook* w = (xl::Workbook*)wb;

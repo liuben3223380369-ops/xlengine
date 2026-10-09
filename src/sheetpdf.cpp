@@ -1,4 +1,5 @@
 #include "sheetpdf.hpp"
+#include "xlsx.hpp"
 #include "pdf.hpp"
 #include <algorithm>
 #include <cmath>
@@ -29,8 +30,10 @@ double displayWidth(const std::string& s, double fontSize) {
 
 }
 
-bool sheetToPdf(Sheet& sh, const std::string& outPath,
-                const SheetPdfOptions& opt, std::string& err) {
+// 把一张表画进已有的 PdfWriter（不建 writer、不保存、不翻页）。
+// 多表导出靠它复用同一个 writer，字体也只需嵌一次。
+static bool renderSheetToWriter(Sheet& sh, PdfWriter& w, const SheetPdfOptions& opt,
+                                const std::string& fontRes, std::string& err) {
     // ---- 1) 找出有数据的范围 ----
     const auto& cells = sh.allCells();
     // 只有标题没有单元格的 PDF 没有意义，直接拒绝
@@ -42,21 +45,7 @@ bool sheetToPdf(Sheet& sh, const std::string& outPath,
     }
     if (maxC < 0) { minC = maxC = 0; minR = maxR = 0; }
 
-    PdfWriter w;
-    double pw = 595.28, ph = 841.89;
-    if (opt.landscape) std::swap(pw, ph);
-    w.setPageSize(pw, ph);
-    w.setMargin(28);
-    if (!opt.title.empty()) w.setTitle(opt.title);
-
-    std::string font = "F1";
-    if (!opt.fontPath.empty()) {
-        std::string e2;
-        if (!w.embedFont(opt.fontPath, font, e2)) {
-            err = "字体嵌入失败: " + e2;
-            return false;
-        }
-    }
+    std::string font = fontRes.empty() ? "F1" : fontRes;
 
     // ---- 2) 列宽：按内容自适应 ----
     int nCols = maxC - minC + 1;
@@ -80,7 +69,7 @@ bool sheetToPdf(Sheet& sh, const std::string& outPath,
     for (double cw : colW) tableW += cw;
 
     // 表格比页面宽时按比例压缩，而不是拆到下一页（Excel 的行为是横向缩放）
-    double usable = pw - 56;
+    double usable = w.pageW() - 56;
     if (tableW > usable && tableW > 0) {
         double k = usable / tableW;
         rowHeadW *= k;
@@ -92,7 +81,7 @@ bool sheetToPdf(Sheet& sh, const std::string& outPath,
     double topMargin = 40;
     if (!opt.title.empty()) topMargin += 26;
     double headerH = opt.showHeaders ? opt.rowHeight : 0;
-    double bottomLimit = ph - 40;
+    double bottomLimit = w.pageH() - 40;
     double avail = bottomLimit - topMargin - headerH;
     int rowsPerPage = std::max(1, (int)std::floor(avail / opt.rowHeight));
     // 首页要重复表头，可容纳的行数少一行
@@ -188,9 +177,80 @@ bool sheetToPdf(Sheet& sh, const std::string& outPath,
         }
     }
 
-    if (!w.save(outPath, err)) return false;
     (void)nRows;
     return true;
+}
+
+// 单表导出：建 writer -> 渲染 -> 保存
+bool sheetToPdf(Sheet& sh, const std::string& outPath,
+                const SheetPdfOptions& opt, std::string& err) {
+    PdfWriter w;
+    double pw = 595.28, ph = 841.89;
+    if (opt.landscape) std::swap(pw, ph);
+    w.setPageSize(pw, ph);
+    w.setMargin(28);
+    if (!opt.title.empty()) w.setTitle(opt.title);
+
+    std::string font;
+    if (!opt.fontPath.empty()) {
+        std::string e2;
+        if (!w.embedFont(opt.fontPath, font, e2)) {
+            err = "字体嵌入失败: " + e2;
+            return false;
+        }
+    }
+    if (!renderSheetToWriter(sh, w, opt, font, err)) return false;
+    return w.save(outPath, err);
+}
+
+// 多表导出：所有工作表依次追加到同一个 PDF
+bool workbookToPdf(Workbook& wb, const std::string& outPath,
+                   const SheetPdfOptions& opt, std::string& err,
+                   int* outSheets) {
+    int n = (int)wb.sheetCount();
+    if (n <= 0) { err = "工作簿没有工作表"; return false; }
+
+    PdfWriter w;
+    double pw = 595.28, ph = 841.89;
+    if (opt.landscape) std::swap(pw, ph);
+    w.setPageSize(pw, ph);
+    w.setMargin(28);
+    w.setTitle(opt.title.empty() ? "工作簿" : opt.title);
+
+    // 字体只嵌一次，所有表共用 —— 逐表嵌会重复打包同一份字体，
+    // 中文字体动辄 10MB，嵌 5 次就是 50MB。
+    std::string font;
+    if (!opt.fontPath.empty()) {
+        std::string e2;
+        if (!w.embedFont(opt.fontPath, font, e2)) {
+            err = "字体嵌入失败: " + e2;
+            return false;
+        }
+    }
+
+    std::vector<std::string> names = wb.sheetNames();
+    int done = 0;
+    for (int i = 0; i < n; i++) {
+        Sheet& sh = wb.sheet((size_t)i);
+        // 空表跳过：给它一页只有标题的纸没有意义
+        if (sh.allCells().empty()) continue;
+        // 逐格取一次值触发求值，否则公式格导出的是空
+        for (auto& kv : sh.allCells()) sh.valueAt(kv.first.first, kv.first.second);
+
+        SheetPdfOptions o = opt;
+        o.title = (i < (int)names.size()) ? names[(size_t)i] : ("Sheet" + std::to_string(i + 1));
+        // 第一张表用 writer 的初始页；后续要翻页
+        if (done > 0) w.newPage();
+        std::string e2;
+        if (!renderSheetToWriter(sh, w, o, font, e2)) {
+            // 单张表失败不该让整个导出泡汤，记下来继续
+            continue;
+        }
+        done++;
+    }
+    if (done == 0) { err = "所有工作表都是空的"; return false; }
+    if (outSheets) *outSheets = done;
+    return w.save(outPath, err);
 }
 
 } // namespace xl

@@ -403,19 +403,28 @@ class MainWindow(QMainWindow):
         lay = QFormLayout(dlg)
         chk_land = QCheckBox("横向")
         lay.addRow(chk_land)
-        lbl = QLabel("仅导出当前工作表：%s" % self.wb.sheet_name(self.grid.sheet_index))
-        lay.addRow(lbl)
+        chk_all = QCheckBox("导出所有工作表到一个 PDF")
+        chk_all.setChecked(True)
+        lay.addRow(chk_all)
         bb = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         bb.accepted.connect(dlg.accept())
         bb.rejected.connect(dlg.reject())
         lay.addRow(bb)
         if dlg.exec() != QDialog.Accepted:
             return
-        if self.grid.sheet.export_pdf(path, "", chk_land.isChecked()):
-            self.status_label.setText("已导出 %s" % os.path.basename(path))
+        if chk_all.isChecked():
+            n = self.wb.export_pdf_all(path, "", chk_land.isChecked())
+            if n < 0:
+                QMessageBox.critical(self, "导出失败",
+                                     "无法导出到：\n%s\n\n%s" % (path, self.wb.last_error))
+                return
+            self.status_label.setText("已导出 %d 张表到 %s" % (n, os.path.basename(path)))
         else:
-            QMessageBox.critical(self, "导出失败",
-                                 "无法导出到：\n%s\n\n%s" % (path, self.wb.last_error))
+            if not self.grid.sheet.export_pdf(path, "", chk_land.isChecked()):
+                QMessageBox.critical(self, "导出失败",
+                                     "无法导出到：\n%s\n\n%s" % (path, self.wb.last_error))
+                return
+            self.status_label.setText("已导出 %s" % os.path.basename(path))
 
     def closeEvent(self, ev):
         if self._maybe_save():
@@ -596,9 +605,7 @@ class MainWindow(QMainWindow):
         lay.addRow(bb)
         if dlg.exec() != QDialog.Accepted:
             return
-        from . import engine as _e
-        _e._lib.xl_set_freeze(self.wb._p, self.grid.sheet_index,
-                              cols.value(), rows.value())
+        self.grid.set_freeze(cols.value(), rows.value())
         self.dirty = True
         self._update_title()
         self.status_label.setText("已冻结 %d 列 %d 行（保存后生效）" %
@@ -606,8 +613,7 @@ class MainWindow(QMainWindow):
 
     def _autofilter(self):
         c0, r0, c1, r1 = self._sel()
-        from . import engine as _e
-        _e._lib.xl_set_autofilter(self.wb._p, self.grid.sheet_index, c0, r0, c1, r1)
+        self.grid.set_filter(c0, r0, c1, r1)
         self.dirty = True
         self._update_title()
         self.status_label.setText("已设置自动筛选 %s:%s" % (addr(c0, r0), addr(c1, r1)))
