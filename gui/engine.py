@@ -98,6 +98,8 @@ _lib.xl_col_width.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int]
 _lib.xl_row_height.restype = ctypes.c_double
 _lib.xl_row_height.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int]
 _lib.xl_set_freeze.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int]
+_lib.xl_get_numfmt.restype = ctypes.c_void_p
+_lib.xl_get_numfmt.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int]
 _lib.xl_get_freeze.argtypes = [ctypes.c_void_p, ctypes.c_int,
                                ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int)]
 _lib.xl_set_autofilter.argtypes = [ctypes.c_void_p, ctypes.c_int,
@@ -111,6 +113,29 @@ _lib.xl_add_chart.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int,
                               ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
                               ctypes.c_char_p, ctypes.c_int, ctypes.c_int]
 _lib.xl_func_count.argtypes = []
+_lib.xl_copy_range.argtypes = [ctypes.c_void_p, ctypes.c_int,
+                               ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                               ctypes.c_int, ctypes.c_int]
+_lib.xl_erase_range.argtypes = [ctypes.c_void_p, ctypes.c_int,
+                                ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int]
+# 条件格式。argtypes 必须显式声明：
+# 不声明的话 ctypes 会把 64 位指针按 C int 截断，char* 参数直接段错误。
+_lib.xl_add_cf.argtypes = [ctypes.c_void_p, ctypes.c_int,
+                           ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                           ctypes.c_int, ctypes.c_int, ctypes.c_char_p, ctypes.c_char_p,
+                           ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_int,
+                           ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int]
+_lib.xl_cf_count.argtypes = [ctypes.c_void_p, ctypes.c_int]
+_lib.xl_cf_info.restype = ctypes.c_void_p
+_lib.xl_cf_info.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int]
+_lib.xl_clear_cf.argtypes = [ctypes.c_void_p, ctypes.c_int]
+_lib.xl_copy_range.argtypes = [ctypes.c_void_p, ctypes.c_int,
+                               ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                               ctypes.c_int, ctypes.c_int]
+_lib.xl_erase_range.argtypes = [ctypes.c_void_p, ctypes.c_int,
+                                ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int]
+_lib.xl_get_numfmt.restype = ctypes.c_void_p
+_lib.xl_get_numfmt.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int]
 _lib.xl_fill.argtypes = [ctypes.c_void_p, ctypes.c_int,
                          ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
                          ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int]
@@ -295,6 +320,34 @@ class Sheet:
     def row_height(self, row):
         return _lib.xl_row_height(self._wb._p, self._i, row)
 
+    def snapshot(self, col, row):
+        """取一格的可还原快照。
+
+        存 raw（带 = 的公式原文）而不是 display —— 存显示值会把
+        =A1+B1 变成 30 这种常量，撤销后公式就死了。
+        """
+        return (self.raw(col, row), self.get_style(col, row).copy())
+
+    def restore(self, col, row, snap):
+        """把快照写回。snap 为 None 表示这格原本不存在，直接擦掉。"""
+        text, st = snap if snap else ("", {})
+        if not text:
+            _lib.xl_erase(self._wb._p, self._i, col, row)
+            return
+        self.set(col, row, text)
+        if st:
+            try:
+                self.style(col, row, **st)
+            except TypeError:
+                pass
+
+    def erase(self, col, row):
+        return _lib.xl_erase(self._wb._p, self._i, col, row) == 0
+
+    def numfmt(self, col, row):
+        """读回数字格式码（撤销格式操作要用）。"""
+        return _s(_lib.xl_get_numfmt(self._wb._p, self._i, col, row))
+
     def freeze(self):
         """(冻结列数, 冻结行数)"""
         c, r = ctypes.c_int(), ctypes.c_int()
@@ -338,6 +391,53 @@ class Sheet:
     def unmerge(self, c0, r0, c1, r1):
         """返回 True 表示确实取消了合并；False 表示该处本来就没合并。"""
         return _lib.xl_unmerge(self._wb._p, self._i, c0, r0, c1, r1) == 0
+
+    # ---- 条件格式 ----
+    CF_TYPES = ["值为", "自定义公式", "前/后 N 项", "高于/低于均值", "重复值", "唯一值"]
+    CF_OPS = ["", "介于", "不介于", "等于", "不等于", "大于", "小于", "大于等于", "小于等于"]
+
+    def add_cf(self, c0, r0, c1, r1, ctype=0, op=5, f1="", f2="",
+               fill="", font_color="", bold=False, italic=False,
+               bottom=False, percent=False, rank=10, above=True):
+        return _lib.xl_add_cf(self._wb._p, self._i, c0, r0, c1, r1,
+                              ctype, op, _e(f1), _e(f2), _e(fill), _e(font_color),
+                              1 if bold else 0, 1 if italic else 0,
+                              1 if bottom else 0, 1 if percent else 0,
+                              rank, 1 if above else 0) == 0
+
+    def cf_count(self):
+        return _lib.xl_cf_count(self._wb._p, self._i)
+
+    def cf_list(self):
+        """列出全部规则，返回字典列表。"""
+        out = []
+        n = self.cf_count()
+        for i in range(n):
+            raw = _s(_lib.xl_cf_info(self._wb._p, self._i, i))
+            parts = raw.split("\t")
+            if len(parts) < 8:
+                continue
+            rect = [int(x) if x else 0 for x in parts[0].split(",")]
+            out.append({
+                "rect": rect,
+                "type": int(parts[1] or 0),
+                "op": int(parts[2] or 0),
+                "f1": parts[3], "f2": parts[4],
+                "fill": parts[5], "font": parts[6],
+                "flags": parts[7],
+                "nrules": int(parts[8]) if len(parts) > 8 else 1,
+            })
+        return out
+
+    def clear_cf(self):
+        return _lib.xl_clear_cf(self._wb._p, self._i) == 0
+
+    def copy_range(self, sc0, sr0, sc1, sr1, dc0, dr0):
+        """复制区域，公式的相对引用会跟着平移。"""
+        return _lib.xl_copy_range(self._wb._p, self._i, sc0, sr0, sc1, sr1, dc0, dr0)
+
+    def erase_range(self, c0, r0, c1, r1):
+        return _lib.xl_erase_range(self._wb._p, self._i, c0, r0, c1, r1)
 
     def export_pdf(self, path, font_path="", landscape=False):
         return _lib.xl_export_pdf(self._wb._p, self._i, _e(str(path)),

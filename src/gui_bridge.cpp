@@ -13,6 +13,7 @@
 //   - 返回 int 的函数：0 表示成功，非 0 表示失败（错误文本用 xl_last_error 取）
 #include <cstdlib>
 #include <cstring>
+#include <sstream>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -20,6 +21,7 @@
 #include "sheet.hpp"
 #include "xlsx.hpp"
 #include "chart.hpp"
+#include "cf.hpp"
 #include "sheetpdf.hpp"
 #include "style.hpp"
 #include "value.hpp"
@@ -192,6 +194,13 @@ int xl_used_range(void* wb, int sheet, int* c0, int* r0, int* c1, int* r1) {
 }
 
 // ---- 数字格式 ----
+// 读回数字格式码 —— 撤销格式操作要能还原，所以必须可读
+char* xl_get_numfmt(void* wb, int sheet, int col, int row) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->sheetCount()) return dupStr("");
+    return dupStr(w->sheet((size_t)sheet).numFmtAt(col, row));
+}
+
 int xl_set_numfmt(void* wb, int sheet, int col, int row, const char* code) {
     if (!checkCell((xl::Workbook*)wb, sheet, col, row)) return 1;
     sheetAt((xl::Workbook*)wb, sheet)->setNumFmt(col, row, code ? code : "");
@@ -494,6 +503,108 @@ int xl_export_pdf_all(void* wb, const char* path, const char* fontPath, int land
         return -1;
     }
     return done;
+}
+
+// ---- 条件格式 ----
+// type: 0=CellIs 1=Expression 2=Top10 3=AboveAverage 4=Duplicate 5=Unique
+// op:   0=None 1=Between 2=NotBetween 3=Equal 4=NotEqual
+//       5=GreaterThan 6=LessThan 7=GtOrEq 8=LtOrEq
+int xl_add_cf(void* wb, int sheet, int c0, int r0, int c1, int r1,
+              int type, int op, const char* f1, const char* f2,
+              const char* fill, const char* fontColor, int bold, int italic,
+              int bottom, int percent, int rank, int above) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->sheetCount()) { g_lastError = "表索引越界"; return 1; }
+
+    xl::ConditionalFormat cf;
+    cf.rects.push_back({{c0, r0, c1, r1}});
+
+    xl::CfRule r;
+    r.type = (xl::CfType)type;
+    r.op = (xl::CfOperator)op;
+    if (f1 && *f1) r.formulas.push_back(f1);
+    if (f2 && *f2) r.formulas.push_back(f2);
+    r.style.fillColor = fill ? fill : "";
+    r.style.fontColor = fontColor ? fontColor : "";
+    r.style.bold = bold != 0;
+    r.style.italic = italic != 0;
+    r.bottom = bottom != 0;
+    r.percent = percent != 0;
+    r.rank = rank > 0 ? rank : 10;
+    r.above = above != 0;
+    cf.rules.push_back(r);
+    w->addCf(sheet, cf);
+    return 0;
+}
+
+int xl_cf_count(void* wb, int sheet) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->allCfs().size()) return 0;
+    return (int)w->allCfs()[(size_t)sheet].size();
+}
+
+// 返回第 i 条规则的描述，JSON 太重，这里用制表符分隔的字段串
+char* xl_cf_info(void* wb, int sheet, int i) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->allCfs().size()) return dupStr("");
+    const auto& v = w->allCfs()[(size_t)sheet];
+    if (i < 0 || i >= (int)v.size()) return dupStr("");
+    const xl::ConditionalFormat& cf = v[(size_t)i];
+    std::ostringstream o;
+    // 区域（取第一块）
+    if (!cf.rects.empty()) {
+        o << cf.rects[0][0] << ',' << cf.rects[0][1] << ',' << cf.rects[0][2] << ',' << cf.rects[0][3];
+    } else o << ",,,,";
+    o << '\t' << (int)(cf.rules.empty() ? xl::CfType::CellIs : cf.rules[0].type);
+    o << '\t' << (int)(cf.rules.empty() ? xl::CfOperator::None : cf.rules[0].op);
+    if (!cf.rules.empty()) {
+        const auto& r = cf.rules[0];
+        o << '\t' << (r.formulas.size() > 0 ? r.formulas[0] : "");
+        o << '\t' << (r.formulas.size() > 1 ? r.formulas[1] : "");
+        o << '\t' << r.style.fillColor << '\t' << r.style.fontColor;
+        o << '\t' << (r.style.bold ? 1 : 0) << (r.style.italic ? 1 : 0);
+        o << '\t' << (int)cf.rules.size();
+    }
+    return dupStr(o.str());
+}
+
+int xl_clear_cf(void* wb, int sheet) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->sheetCount()) { g_lastError = "表索引越界"; return 1; }
+    w->clearCfs(sheet);
+    return 0;
+}
+
+// ---- 区域复制（拖拽移动选区要用）----
+// 把源区域的内容复制到目标左上角。走的必须是引擎的引用平移，
+// 自己拼公式文本会让 =A1+1 移到别处还指向 A1。
+int xl_copy_range(void* wb, int sheet, int sc0, int sr0, int sc1, int sr1,
+                  int dc0, int dr0) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->sheetCount()) { g_lastError = "表索引越界"; return 1; }
+    xl::FillRequest req;
+    req.srcC0 = sc0; req.srcR0 = sr0; req.srcC1 = sc1; req.srcR1 = sr1;
+    req.dstC0 = dc0;  req.dstR0 = dr0;
+    req.repeatCols = sc1 - sc0 + 1;
+    req.repeatRows = sr1 - sr0 + 1;
+    xl::FillResult res = xl::fillRange(w->sheet((size_t)sheet), req);
+    if (!res.error.empty()) { g_lastError = res.error; return -1; }
+    return res.written;
+}
+
+// 清空区域（拖拽移动后要把原位置擦掉）
+int xl_erase_range(void* wb, int sheet, int c0, int r0, int c1, int r1) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->sheetCount()) { g_lastError = "表索引越界"; return 1; }
+    xl::Sheet& sh = w->sheet((size_t)sheet);
+    // 先快照再删：边遍历边 erase 会让迭代器失效
+    std::vector<std::pair<int, int>> targets;
+    for (auto& kv : sh.allCells())
+        if (kv.first.first >= c0 && kv.first.first <= c1 &&
+            kv.first.second >= r0 && kv.first.second <= r1)
+            targets.push_back(kv.first);
+    for (auto& t : targets) sh.eraseCell(t.first, t.second);
+    return (int)targets.size();
 }
 
 // ---- 结构性编辑 ----

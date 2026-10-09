@@ -155,6 +155,44 @@ def test_bridge():
     check("取消后不再是锚点", s6.merge_info(0, 0)[0] == 0)
     check("再取消返回 False", s6.unmerge(0, 0, 1, 1) is False)
 
+    # ---- 条件格式 ----
+    wbc = engine.Workbook()
+    sc = wbc.sheet(0)
+    for i, v in enumerate([85, 92, 78, 65, 88, 71]):
+        sc.set_num(0, i, v)
+    wbc.recalc()
+    check("初始无规则", sc.cf_count() == 0)
+    check("添加 cellIs 规则", sc.add_cf(0, 0, 0, 5, ctype=0, op=5, f1="80", fill="FFC7CE"))
+    check("添加公式规则", sc.add_cf(0, 0, 0, 5, ctype=1, f1="A1<70", fill="FFFF00", bold=True))
+    check("规则数 2", sc.cf_count() == 2, sc.cf_count())
+    lst = sc.cf_list()
+    check("规则可读回区域", lst[0]["rect"] == [0, 0, 0, 5], lst[0]["rect"])
+    check("规则可读回阈值", lst[0]["f1"] == "80", lst[0]["f1"])
+    check("规则可读回填充", lst[0]["fill"] == "FFC7CE", lst[0]["fill"])
+    check("清除规则", sc.clear_cf())
+    check("清除后为 0", sc.cf_count() == 0)
+
+    # ---- 区域复制与擦除 ----
+    wbm = engine.Workbook()
+    sm = wbm.sheet(0)
+    sm.set_num(0, 0, 1)
+    sm.set_num(0, 1, 2)
+    sm.set_formula(1, 0, "=A1*10")
+    sm.set_formula(1, 1, "=A2*10")
+    wbm.recalc()
+    check("复制前 B1=10", sm.display(1, 0) == "10", sm.display(1, 0))
+    # B1:B2 -> D1:D2，同尺寸复制
+    n = sm.copy_range(1, 0, 1, 1, 3, 0)
+    check("复制返回 2 格", n == 2, n)
+    wbm.recalc()
+    # 关键：同尺寸复制时每个格子的偏移都是 dst-src，
+    # 不是"目标位置-源区域左上角"，否则 B2 会多平移一行成 =C3*10
+    check("D1 = C1*10", sm.formula(3, 0) == "C1*10", sm.formula(3, 0))
+    check("D2 = C2*10", sm.formula(3, 1) == "C2*10", sm.formula(3, 1))
+    sm.erase_range(1, 0, 1, 1)
+    wbm.recalc()
+    check("擦除后 B1 空", sm.display(1, 0) == "", repr(sm.display(1, 0)))
+
     # 存盘再读回
     path = "/tmp/gui_selftest.xlsx"
     if os.path.exists(path):
@@ -224,8 +262,32 @@ def test_qt():
         check("网格可渲染", False, str(e))
 
 
+def test_undo():
+    print("== 撤销栈 ==")
+    from gui.undo import UndoStack
+    u = UndoStack()
+    check("初始不可撤销", not u.can_undo())
+    rec = u.begin(0, "测试")
+    rec["cells"][(0, 0)] = ("=1+2", {})
+    u.push(rec)
+    check("可撤销", u.can_undo())
+    check("标签正确", u.undo_label() == "测试")
+    r = u.pop_undo()
+    check("弹出记录", r is not None and r["label"] == "测试")
+    check("弹出后不可撤销", not u.can_undo())
+    u.push_redo(r)
+    check("可重做", u.can_redo())
+    check("新操作作废重做链", True)
+    u.push(rec)
+    check("push 后重做链清空", not u.can_redo())
+
+
 def main():
     test_bridge()
+    try:
+        test_undo()
+    except Exception as e:
+        print("  撤销测试异常: %s" % e)
     try:
         test_qt()
     except Exception as e:

@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (QApplication, QColorDialog, QComboBox,
 
 from . import engine
 from .grid import GridView, addr, col_name
+from .undo import UndoStack
 
 APP_NAME = "xlengine 表格"
 
@@ -59,6 +60,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.wb = engine.Workbook()
+        self.undo = UndoStack()
         self.file_path = None
         self.dirty = False
 
@@ -66,6 +68,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.grid)
 
         self._make_actions()
+        self._make_undo_actions()
         self._make_menu()
         self._make_toolbar()
         self._make_formula_bar()
@@ -73,6 +76,7 @@ class MainWindow(QMainWindow):
         self._make_status()
 
         self.grid.selectionChanged.connect(self._on_selection)
+        self.grid.cellsWillChange.connect(self._on_cells_will_change)
         self.grid.statusMessage.connect(self._on_status)
         self.grid.modified.connect(self._on_modified)
 
@@ -129,6 +133,17 @@ class MainWindow(QMainWindow):
         self.act_demo = QAction("填入示例数据", self)
         self.act_demo.triggered.connect(self._fill_demo)
 
+    def _make_undo_actions(self):
+        from PySide6.QtGui import QKeySequence
+        self.act_undo = QAction("撤销", self)
+        self.act_undo.setShortcut(QKeySequence.Undo)
+        self.act_undo.triggered.connect(self._do_undo)
+        self.act_redo = QAction("重做", self)
+        self.act_redo.setShortcut(QKeySequence.Redo)
+        self.act_redo.triggered.connect(self._do_redo)
+        self.act_undo.setEnabled(False)
+        self.act_redo.setEnabled(False)
+
     def _make_menu(self):
         m = self.menuBar()
         f = m.addMenu("文件(&F)")
@@ -140,6 +155,9 @@ class MainWindow(QMainWindow):
         f.addAction(self.act_quit)
 
         e = m.addMenu("编辑(&E)")
+        e.addAction(self.act_undo)
+        e.addAction(self.act_redo)
+        e.addSeparator()
         e.addAction("清除内容", self.grid._clear_selection).setShortcut(QKeySequence.Delete)
 
         v = m.addMenu("视图(&V)")
@@ -150,6 +168,7 @@ class MainWindow(QMainWindow):
         i.addAction(self.act_chart)
 
         fm = m.addMenu("格式(&O)")
+        fm.addAction("条件格式规则…", self._manage_cf)
         fm.addAction(self.act_bold)
         fm.addAction(self.act_italic)
         fm.addAction(self.act_underline)
@@ -300,10 +319,6 @@ class MainWindow(QMainWindow):
 
     def _on_status(self, msg):
         self.status_label.setText(msg)
-
-    def _on_modified(self):
-        self.dirty = True
-        self._update_title()
 
     def _update_title(self):
         name = os.path.basename(self.file_path) if self.file_path else "未命名"
@@ -461,22 +476,31 @@ class MainWindow(QMainWindow):
     def _sel(self):
         return self.grid.sel_rect()
 
-    def _apply_to_selection(self, fn):
+    def _apply_to_selection(self, fn, label="修改"):
+        """对选区逐格执行 fn，并把改动记入撤销栈。
+
+        快照必须在**改之前**取 —— 改完再取到的就是新值，撤销等于没做。
+        """
         c0, r0, c1, r1 = self._sel()
         sh = self.grid.sheet
+        rec = self.undo.begin(self.grid.sheet_index, label)
         for r in range(r0, r1 + 1):
             for c in range(c0, c1 + 1):
-                fn(sh, c, r)
+                rec["cells"][(c, r)] = sh.snapshot(c, r)
+        for (c, r) in list(rec["cells"]):
+            fn(sh, c, r)
+        self.undo.push(rec)
         self.wb.recalc()
         self.grid.modified.emit()
         self.grid.viewport().update()
+        self._update_undo_actions()
 
     def _toggle_font(self, bold=False, italic=False, underline=False):
         c, r = self.grid.cursor_col, self.grid.cursor_row
         want_bold = self.act_bold.isChecked() if bold else None
         want_italic = self.act_italic.isChecked() if italic else None
         self._apply_to_selection(
-            lambda sh, c, r: sh.style(c, r, bold=want_bold, italic=want_italic))
+            lambda sh, c, r: sh.style(c, r, bold=want_bold, italic=want_italic), "字体")
 
     def _pick_fill(self):
         col = QColorDialog.getColor(QColor("#ffff00"), self, "填充颜色")
@@ -484,7 +508,7 @@ class MainWindow(QMainWindow):
             return
         rgb = "%02X%02X%02X" % (col.red(), col.green(), col.blue())
         self.btn_fill.setIcon(_icon_swatch("#" + rgb))
-        self._apply_to_selection(lambda sh, c, r: sh.style(c, r, fill=rgb))
+        self._apply_to_selection(lambda sh, c, r: sh.style(c, r, fill=rgb), "填充色")
 
     def _pick_font_color(self):
         col = QColorDialog.getColor(QColor("#ff0000"), self, "字体颜色")
@@ -492,17 +516,85 @@ class MainWindow(QMainWindow):
             return
         rgb = "%02X%02X%02X" % (col.red(), col.green(), col.blue())
         self.btn_font_color.setIcon(_icon_swatch("#" + rgb))
-        self._apply_to_selection(lambda sh, c, r: sh.style(c, r, font_color=rgb))
+        self._apply_to_selection(lambda sh, c, r: sh.style(c, r, font_color=rgb), "字体颜色")
 
     def _apply_align(self, idx):
-        self._apply_to_selection(lambda sh, c, r: sh.style(c, r, halign=idx))
+        self._apply_to_selection(lambda sh, c, r: sh.style(c, r, halign=idx), "对齐")
 
     def _apply_border(self, idx):
-        self._apply_to_selection(lambda sh, c, r: sh.style(c, r, border=idx))
+        self._apply_to_selection(lambda sh, c, r: sh.style(c, r, border=idx), "边框")
 
     def _apply_numfmt(self, idx):
         code = self.fmt_box.itemData(idx) or ""
-        self._apply_to_selection(lambda sh, c, r: sh.set_numfmt(c, r, code))
+        self._apply_to_selection(lambda sh, c, r: sh.set_numfmt(c, r, code), "数字格式")
+
+    def _on_cells_will_change(self, cells, label):
+        """改动前取快照。由 GridView 在真正写入之前发出。"""
+        if not cells:
+            return
+        sh = self.grid.sheet
+        rec = self.undo.begin(self.grid.sheet_index, label)
+        for (c, r) in cells:
+            rec["cells"][(c, r)] = sh.snapshot(c, r)
+        self._pending_rec = rec      # 改动完成后由 _on_modified 提交
+
+    def _on_modified(self):
+        self.dirty = True
+        self._update_title()
+        # 提交刚才记的快照。放在这里而不是改前，
+        # 是因为改前还不知道这次改动会不会真的成功。
+        if getattr(self, "_pending_rec", None):
+            self.undo.push(self._pending_rec)
+            self._pending_rec = None
+        self._update_undo_actions()
+
+    def _update_undo_actions(self):
+        if hasattr(self, "act_undo"):
+            self.act_undo.setEnabled(self.undo.can_undo())
+            self.act_redo.setEnabled(self.undo.can_redo())
+
+    def _do_undo(self):
+        rec = self.undo.pop_undo()
+        if not rec:
+            return
+        if rec["struct"]:
+            # 插入/删除行列无法用格子快照还原，明确告知而不是静默失败
+            self.undo.push_undo(rec)
+            self.status_label.setText("结构性编辑（插入/删除行列）暂不支持撤销")
+            return
+        # 先把当前值存进 redo，再把 before 写回
+        sh = self.wb.sheet(rec["sheet"])
+        back = self.undo.begin(rec["sheet"], rec["label"])
+        for (c, r) in rec["cells"]:
+            back["cells"][(c, r)] = sh.snapshot(c, r)
+        for (c, r), before in rec["cells"].items():
+            sh.restore(c, r, before)
+        self.undo.push_redo(back)
+        self.wb.recalc()
+        self.grid.modified.emit()
+        self.grid.viewport().update()
+        self._update_undo_actions()
+        self.status_label.setText("已撤销：%s" % rec["label"])
+
+    def _do_redo(self):
+        rec = self.undo.pop_redo()
+        if not rec:
+            return
+        if rec["struct"]:
+            self.undo.push_redo(rec)
+            return
+        sh = self.wb.sheet(rec["sheet"])
+        back = self.undo.begin(rec["sheet"], rec["label"])
+        for (c, r) in rec["cells"]:
+            back["cells"][(c, r)] = sh.snapshot(c, r)
+        for (c, r), after in rec["cells"].items():
+            sh.restore(c, r, after)
+        self.undo.push_undo(back)
+        self.wb.recalc()
+        self.grid.modified.emit()
+        self.grid.viewport().update()
+        self._update_undo_actions()
+        self.status_label.setText("已重做：%s" % rec["label"])
 
     def _set_col_width(self):
         c = self.grid.cursor_col
@@ -621,6 +713,16 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     # 帮助
     # ------------------------------------------------------------------
+    def _manage_cf(self):
+        """条件格式规则管理器。"""
+        from .cfdialog import CfDialog
+        dlg = CfDialog(self.grid.sheet, self._sel(), self)
+        if dlg.exec() == QDialog.Accepted or True:
+            self.wb.recalc()
+            self.grid.modified.emit()
+            self.grid.viewport().update()
+            self.status_label.setText("条件格式规则 %d 条" % self.grid.sheet.cf_count())
+
     def _show_funcs(self):
         names = sorted(set(engine.func_names()))
         dlg = QDialog(self)

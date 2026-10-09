@@ -272,7 +272,19 @@ FillResult fillRange(Sheet& sh, const FillRequest& req) {
         for (int c = 0; c < req.repeatCols; c++) {
             const Src& s = src[(size_t)(r % srcRows)][(size_t)(c % srcCols)];
             int tc = req.dstC0 + c, tr = req.dstR0 + r;
-            int dc = tc - req.srcC0, dr = tr - req.srcR0;
+            //
+            // 平移量要区分两种语义，否则同尺寸复制会算错：
+            //
+            //   平铺（1 格源拖出 N 格）：第 r 个副本的偏移就是 r，
+            //     所以 dc = tc - srcC0 = dstC0 + c - srcC0
+            //   同尺寸复制（2 格源搬到另一个 2 格位）：
+            //     源第 2 行相对源左上角的 +1 是它**自带**的，不能算进偏移量，
+            //     所以 dc = tc - (srcC0 + c) = dstC0 - srcC0
+            //
+            // 不区分的话，把 B1:B2（=A1*10 / =A2*10）搬到 D1:D2，
+            // B2 的公式会多平移一行变成 =A3*10 而不是 =A2*10。
+            int dc = tc - req.srcC0 - (srcCols == req.repeatCols ? c : 0);
+            int dr = tr - req.srcR0 - (srcRows == req.repeatRows ? r : 0);
             if (!s.has) { sh.eraseCell(tc, tr); continue; }
             if (s.hasFormula) {
                 ShiftResult sr = shiftFormula(s.formula, dc, dr);

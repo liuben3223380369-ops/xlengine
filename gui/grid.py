@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (QAbstractScrollArea, QLineEdit, QApplication,
                                QMenu, QWidget, QInputDialog)
 
 from . import engine
+from . import engine as _e_lib
 
 # ---- 外观常量 ----
 HEADER_BG = QColor("#f0f0f0")
@@ -73,6 +74,9 @@ class GridView(QAbstractScrollArea):
     statusMessage = Signal(str)
     # 内容变化 -> 标记未保存
     modified = Signal()
+    # 即将改动这些格子 -> 主窗口先取快照再让我改。
+    # 必须在**改之前**发：改完再取到的就是新值，撤销等于没做。
+    cellsWillChange = Signal(object, str)
 
     def __init__(self, workbook, parent=None):
         super().__init__(parent)
@@ -93,7 +97,9 @@ class GridView(QAbstractScrollArea):
         self._row_heights = {}
         self._editing = False
         self._editor = None
-        self._drag_fill = None   # 填充柄拖动中的目标区域
+        self._drag_fill = None
+        self._drag_move = None       # (来源区域, 落点左上角, 提示矩形)
+        self._move_candidate = None  # 悬停在选区边框上时待命
         self._drag_select = False
         self._resizing = None    # ('col'|'row', index, start_pos)
         self._frozen_cols = 0    # 冻结窗格：左侧列数 / 顶部行数
@@ -420,6 +426,7 @@ class GridView(QAbstractScrollArea):
             p.setClipRect(vp)
 
         self._paint_selection(p, sc0, sr0, sc1, sr1)
+        self._paint_drag_hint(p)
         if fc or fr:
             self._paint_freeze(p, vp)
         self._paint_headers(p, vp)
@@ -523,6 +530,20 @@ class GridView(QAbstractScrollArea):
             p.setPen(QPen(SELECT_BORDER, 1, Qt.DashLine))
             p.drawRect(QRect(x0, y0, x1 - x0, y1 - y0).adjusted(0, 0, -1, -1))
 
+    def _paint_drag_hint(self, p):
+        """拖拽移动时画目标位置的虚线框，让用户知道会落在哪儿。"""
+        if not self._drag_move or not self._drag_move[2]:
+            return
+        dc0, dr0, dc1, dr1 = self._drag_move[2]
+        x0 = self.x_of_col(dc0)
+        y0 = self.y_of_row(dr0)
+        w = sum(self.col_w(c) for c in range(dc0, dc1 + 1))
+        h = sum(self.row_h(r) for r in range(dr0, dr1 + 1))
+        pen = QPen(QColor("#1a73e8"), 2, Qt.DashLine)
+        p.setPen(pen)
+        p.setBrush(Qt.NoBrush)
+        p.drawRect(QRect(x0, y0, w, h))
+
     def _paint_headers(self, p, vp):
         """列标栏 + 行号栏。
 
@@ -616,6 +637,7 @@ class GridView(QAbstractScrollArea):
         self._editing = False
         if save:
             c, r = self.cursor_col, self.cursor_row
+            self.cellsWillChange.emit([(c, r)], "输入内容")
             if self.sheet.set(c, r, text):
                 self.wb.recalc()
                 self.modified.emit()
@@ -736,6 +758,18 @@ class GridView(QAbstractScrollArea):
         col = self.col_at_x(x)
         row = self.row_at_y(y)
 
+        # 拖拽移动：按在选区**边框**上才触发。
+        # 边框之内是"重新选区"，边框之外也是"重新选区" ——
+        # 不区分的话，想改选区时会不小心把数据搬走。
+        sc0, sr0, sc1, sr1 = self.sel_rect()
+        inside = sc0 <= col <= sc1 and sr0 <= row <= sr1
+        on_edge = (inside and (col == sc0 or col == sc1 or row == sr0 or row == sr1)
+                   and not (sc0 == sc1 and sr0 == sr1))
+        if on_edge and ev.button() == Qt.LeftButton:
+            self._drag_move = ((sc0, sr0, sc1, sr1), (col, row), None)
+            self.setCursor(Qt.DragMoveCursor)
+            return
+
         # 填充柄
         cr = self.cell_rect(self.cursor_col, self.cursor_row)
         if (abs(x - (cr.right() - 4)) < 6 and abs(y - (cr.bottom() - 4)) < 6
@@ -762,6 +796,16 @@ class GridView(QAbstractScrollArea):
             row = self.row_at_y(y)
             self._drag_fill = (self.cursor_col, self.cursor_row,
                                max(self.cursor_col, col), max(self.cursor_row, row))
+            self.viewport().update()
+            return
+
+        if self._drag_move:
+            src, (ac, ar), _ = self._drag_move
+            w = src[2] - src[0]
+            h = src[3] - src[1]
+            dc, dr = col - ac, row - ar
+            dst = (src[0] + dc, src[1] + dr, src[0] + dc + w, src[1] + dr + h)
+            self._drag_move = (src, (ac, ar), dst)
             self.viewport().update()
             return
 
@@ -801,6 +845,15 @@ class GridView(QAbstractScrollArea):
         self.edit_current()
 
     def mouseReleaseEvent(self, ev):
+        if self._drag_move:
+            src, _, dst = self._drag_move
+            self._drag_move = None
+            self.unsetCursor()
+            if dst and dst[:2] != (src[0], src[1]):
+                self._do_move(src, dst)
+            self.viewport().update()
+            return
+
         if self._drag_fill:
             c0, r0, c1, r1 = self._drag_fill
             self._drag_fill = None
@@ -815,6 +868,8 @@ class GridView(QAbstractScrollArea):
     def _clear_selection(self):
         c0, r0, c1, r1 = self.sel_rect()
         sh = self.sheet
+        self.cellsWillChange.emit(
+            [(c, r) for r in range(r0, r1 + 1) for c in range(c0, c1 + 1)], "清除内容")
         for r in range(r0, r1 + 1):
             for c in range(c0, c1 + 1):
                 sh.erase(c, r)
@@ -833,6 +888,8 @@ class GridView(QAbstractScrollArea):
         # 源就是当前光标所在的那一格，目标是从它到拖到的位置。
         # 走引擎的 fillRange：公式里的相对引用会按偏移平移，
         # 常量则原样复制。
+        self.cellsWillChange.emit(
+            [(c, r) for r in range(r0, r1 + 1) for c in range(c0, c1 + 1)], "填充")
         n = sh.fill(c0, r0, c0, r0,
                     c0, r0,
                     c1 - c0 + 1, r1 - r0 + 1)
@@ -895,6 +952,39 @@ class GridView(QAbstractScrollArea):
         self.modified.emit()
         self.viewport().update()
         self.statusMessage.emit("已粘贴")
+
+    def _do_move(self, src, dst):
+        """把选区搬到新位置。
+
+        顺序必须是"先复制后擦除"，且都走引擎接口：
+          - 复制走 fillRange，公式的相对引用会跟着平移
+          - 擦除走 erase_range
+        自己拼公式文本的话 =A1+1 搬到别处还指向 A1，数据就错了。
+        """
+        sh = self.sheet
+        sc0, sr0, sc1, sr1 = src
+        dc0, dr0 = dst[0], dst[1]
+        # 先记快照供撤销
+        # 源区 + 目标区都要快照：撤销时不仅要把数据搬回去，
+        # 还要把目标位置原本的内容还原（否则会留下残骸）。
+        # 宽度/高度必须是 (末-首+1)，写成 (末-首) 会少算一行一列。
+        w0, h0 = sc1 - sc0 + 1, sr1 - sr0 + 1
+        targets = [(c, r) for r in range(sr0, sr1 + 1) for c in range(sc0, sc1 + 1)]
+        targets += [(c, r) for r in range(dr0, dr0 + h0) for c in range(dc0, dc0 + w0)]
+        self.cellsWillChange.emit(list(dict.fromkeys(targets)), "移动选区")
+
+        w, h = w0, h0
+        n = self.sheet.copy_range(sc0, sr0, sc1, sr1, dc0, dr0)
+        if n < 0:
+            self.statusMessage.emit("移动失败: " + self.wb.last_error)
+            return
+        # 擦除原位置
+        self.sheet.erase_range(sc0, sr0, sc1, sr1)
+        self.wb.recalc()
+        self.modified.emit()
+        self.set_cursor(dc0, dr0)
+        self.set_cursor(dc0 + w - 1, dr0 + h - 1, extend=True)
+        self.statusMessage.emit("已移动到 %s" % addr(dc0, dr0))
 
     def _toggle_merge(self):
         c0, r0, c1, r1 = self.sel_rect()
