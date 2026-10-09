@@ -4,7 +4,7 @@ DEPFLAGS  = -MMD -MP
 
 SRCS     := src/functions.cpp src/fn_date.cpp src/fn_math.cpp src/fn_stat.cpp src/fn_stat2.cpp src/fn_array.cpp src/fn_more.cpp \
             src/fn_text.cpp src/fn_eng.cpp src/fn_fin.cpp src/fn_fill.cpp src/fn_fill2.cpp src/fn_fill3.cpp src/fn_fill4.cpp src/ttf.cpp src/pdf.cpp src/sheetpdf.cpp src/chartpdf.cpp src/tui.cpp src/refshift.cpp src/numfmt.cpp src/style.cpp src/cf.cpp src/dv.cpp src/note.cpp src/view.cpp src/image.cpp src/depgraph.cpp src/precedent.cpp \
-            src/eval.cpp src/parser.cpp src/sheet.cpp src/layout.cpp src/canvas.cpp src/render.cpp src/zip.cpp src/xml.cpp src/chartxml.cpp src/xlsx.cpp src/main.cpp
+            src/eval.cpp src/parser.cpp src/sheet.cpp src/layout.cpp src/canvas.cpp src/render.cpp src/zip.cpp src/xml.cpp src/chartxml.cpp src/xlsx.cpp src/gui_bridge.cpp src/main.cpp
 OBJS     := $(SRCS:.cpp=.o)
 DEPS     := $(OBJS:.o=.d)
 TARGET   := xl
@@ -13,6 +13,67 @@ TEST_SRC := tests/test_new.cpp tests/test_new2.cpp tests/test_xlsx.cpp tests/tes
 TEST_BIN := tests/xltest tests/xltest2 tests/xlsxlt tests/chartt tests/fillt tests/pdft tests/tuit tests/refshiftt tests/numfmtt tests/stylet tests/cft tests/dvt tests/notet tests/sharedt tests/viewt tests/imgt tests/dnt tests/dept tests/auditt tests/smoket tests/robustt tests/stresst tests/xlbench tools/chartdemo tools/xlsxdemo
 
 all: $(TARGET)
+
+# ---------------------------------------------------------------------------
+# 图形界面：把引擎编成共享库，供 Python（ctypes）调用
+# ---------------------------------------------------------------------------
+# 注意 -fPIC 是必须的：不加的话链接 .so 会报
+#   relocation R_X86_64_TPOFF32 ... can not be used when making a shared object
+# 普通可执行文件用的 .o 不能混进来，所以这里单独一套 -fPIC 目标文件。
+LIB_DIR   := .build-pic
+LIB_SRCS  := $(filter-out src/main.cpp src/tui.cpp,$(SRCS))
+LIB_OBJS  := $(patsubst src/%.cpp,$(LIB_DIR)/%.o,$(LIB_SRCS))
+LIB_NAME  := libxlengine.so
+
+lib: $(LIB_NAME)
+
+$(LIB_NAME): $(LIB_OBJS)
+	$(CXX) -std=c++17 -O2 -shared -o $@ $(LIB_OBJS) -lz
+
+$(LIB_DIR)/%.o: src/%.cpp | $(LIB_DIR)
+	$(CXX) -std=c++17 -O2 -Wall -Wextra -fPIC -I src -c $< -o $@
+
+$(LIB_DIR):
+	mkdir -p $(LIB_DIR)
+
+lib-clean:
+	rm -rf $(LIB_DIR) $(LIB_NAME)
+
+# ---------------------------------------------------------------------------
+# 图形界面
+# ---------------------------------------------------------------------------
+# 界面用 Python + PySide6 写，通过 ctypes 调上面的 .so。
+# 所以跑界面前必须先 `make lib`。
+gui: lib
+	@echo "启动图形界面…"
+	@python3 -m gui.app || \
+	  echo "" && \
+	  echo "启动失败。若提示 No module named 'PySide6'，请先安装：" && \
+	  echo "    pip install PySide6" && false
+
+gui-test: lib
+	@python3 -m gui.selftest
+
+gui-shot: lib
+	@python3 gui/run_offscreen.py
+
+# ---------------------------------------------------------------------------
+# 图形界面
+# ---------------------------------------------------------------------------
+# 界面用 Python + PySide6 写，通过 ctypes 调上面的 .so。
+# 所以跑界面前必须先 `make lib`。
+gui: lib
+	@echo "启动图形界面…"
+	@python3 -m gui.app || \
+	  echo "" && \
+	  echo "启动失败。若提示 No module named 'PySide6'，请先安装：" && \
+	  echo "    pip install PySide6" && false
+
+gui-test: lib
+	@python3 -m gui.selftest
+
+gui-shot: lib
+	@python3 gui/run_offscreen.py
 
 $(TARGET): $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $(OBJS) -lz
