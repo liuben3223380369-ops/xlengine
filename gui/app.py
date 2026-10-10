@@ -166,6 +166,10 @@ class MainWindow(QMainWindow):
 
         i = m.addMenu("插入(&I)")
         i.addAction(self.act_chart)
+        i.addAction("管理已有图表…", self._manage_chart)
+
+        d = m.addMenu("数据(&D)")
+        d.addAction("数据验证与批注…", self._manage_dv_note)
 
         fm = m.addMenu("格式(&O)")
         fm.addAction("条件格式规则…", self._manage_cf)
@@ -722,6 +726,27 @@ class MainWindow(QMainWindow):
             self.grid.modified.emit()
             self.grid.viewport().update()
             self.status_label.setText("条件格式规则 %d 条" % self.grid.sheet.cf_count())
+
+    def _manage_dv_note(self):
+        """数据验证 + 批注 管理器。"""
+        from .dvdialog import DvNoteDialog
+        dlg = DvNoteDialog(self.grid.sheet, self._sel(), self)
+        dlg.exec()
+        self.wb.recalc()
+        self.grid.modified.emit()
+        self.grid.viewport().update()
+        self.status_label.setText("数据验证 %d 条 / 批注 %d 条"
+                                  % (self.grid.sheet.dv_count(),
+                                     self.grid.sheet.note_count()))
+
+    def _manage_chart(self):
+        """图表管理器：改类型/标题/位置，或删除。"""
+        from .chartdialog import ChartDialog
+        dlg = ChartDialog(self.grid.sheet, self)
+        dlg.exec()
+        self.grid.modified.emit()
+        self.grid.viewport().update()
+        self.status_label.setText("图表 %d 个" % self.grid.sheet.chart_count())
 
     def _show_funcs(self):
         names = sorted(set(engine.func_names()))

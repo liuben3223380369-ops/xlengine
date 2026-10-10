@@ -193,6 +193,86 @@ def test_bridge():
     wbm.recalc()
     check("擦除后 B1 空", sm.display(1, 0) == "", repr(sm.display(1, 0)))
 
+    # ---- 数据验证 ----
+    wbd = engine.Workbook()
+    sd = wbd.sheet(0)
+    for i in range(3):
+        sd.set_num(0, i, 85 + i)
+    wbd.recalc()
+    check("dv 初始 0", sd.dv_count() == 0)
+    check("dv 添加整数区间", sd.add_dv(0, 0, 0, 2, dtype=1, op=1, f1="0", f2="100"))
+    check("dv 添加序列", sd.add_dv(1, 0, 1, 2, dtype=3, f1="是,否,也许"))
+    check("dv 数量 2", sd.dv_count() == 2, sd.dv_count())
+    dl = sd.dv_list()
+    check("dv 区域可读回", dl[0]["rect"] == [0, 0, 0, 2], dl[0]["rect"])
+    check("dv 阈值可读回", dl[0]["f1"] == "0" and dl[0]["f2"] == "100",
+          "%r/%r" % (dl[0]["f1"], dl[0]["f2"]))
+    check("dv 序列可读回", dl[1]["f1"] == "是,否,也许", dl[1]["f1"])
+    check("dv 清除", sd.clear_dv())
+    check("dv 清除后 0", sd.dv_count() == 0)
+
+    # ---- 批注 ----
+    wbn = engine.Workbook()
+    sn = wbn.sheet(0)
+    sn.set_num(0, 0, 1)
+    wbn.recalc()
+    check("note 初始 0", sn.note_count() == 0)
+    check("note 添加", sn.add_note(0, 0, "第一行\n第二行", "作者甲"))
+    check("note 添加第二条", sn.add_note(1, 1, "备注", "作者乙"))
+    check("note 数量 2", sn.note_count() == 2, sn.note_count())
+    nl = sn.note_list()
+    check("note 坐标可读回", (nl[0]["col"], nl[0]["row"]) == (0, 0),
+          "%r" % ((nl[0]["col"], nl[0]["row"]),))
+    check("note 作者可读回", nl[0]["author"] == "作者甲", nl[0]["author"])
+    check("note 多行保留", nl[0]["text"] == "第一行\n第二行", repr(nl[0]["text"]))
+    check("note 按格删除", sn.remove_note(0, 0))
+    check("note 删后剩 1", sn.note_count() == 1, sn.note_count())
+    check("note 删不存在的返回 False", sn.remove_note(0, 0) is False)
+
+    # 多行批注的换行必须在别的 reader 里也保住。
+    # 写入时拆成多个 <r> 的话，自己的 reader 会用 \n 连起来 —— 往返自测
+    # 完全正常，openpyxl 却会把 run 直接拼接，换行就丢了。
+    import os as _os
+    _p = "/tmp/selftest_notes.xlsx"
+    if _os.path.exists(_p):
+        _os.remove(_p)
+    wbn.recalc()
+    wbn.save(_p)
+    try:
+        import openpyxl
+        _ws = openpyxl.load_workbook(_p).active
+        _c = _ws["B2"].comment
+        check("openpyxl 能读到批注", _c is not None)
+        check("openpyxl 读到的作者", _c is not None and _c.author == "作者乙",
+              _c.author if _c else None)
+    except ImportError:
+        print("  （跳过 openpyxl 验证：未安装）")
+    sn.clear_notes()
+    check("note 全部清除", sn.note_count() == 0)
+
+    # ---- 图表编辑 ----
+    wbg = engine.Workbook()
+    sg = wbg.sheet(0)
+    for i, v in enumerate([85, 92, 78]):
+        sg.set_num(0, i, v)
+    wbg.recalc()
+    check("chart 初始 0", sg.chart_count() == 0)
+    sg.add_chart(0, 0, 0, 2, 2, "原标题", has_header=0)
+    check("chart 添加后 1", sg.chart_count() == 1, sg.chart_count())
+    cl = sg.chart_list()
+    check("chart 标题可读回", cl[0]["title"] == "原标题", cl[0]["title"])
+    check("chart 改类型", sg.set_chart_type(0, 2))
+    check("chart 类型生效", sg.chart_list()[0]["type"] == 2,
+          sg.chart_list()[0]["type"])
+    check("chart 改标题", sg.set_chart_title(0, "新标题"))
+    check("chart 标题生效", sg.chart_list()[0]["title"] == "新标题",
+          sg.chart_list()[0]["title"])
+    check("chart 改锚点", sg.set_chart_anchor(0, 5, 0, 13, 16))
+    check("chart 锚点生效", sg.chart_list()[0]["anchor"] == [5, 0, 13, 16],
+          sg.chart_list()[0]["anchor"])
+    check("chart 删除", sg.remove_chart(0))
+    check("chart 删后 0", sg.chart_count() == 0, sg.chart_count())
+
     # 存盘再读回
     path = "/tmp/gui_selftest.xlsx"
     if os.path.exists(path):

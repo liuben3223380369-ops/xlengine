@@ -85,6 +85,10 @@ public:
     size_t chartCount(size_t sheetIndex) const;
     // 某张表上的全部图表（可读可改）
     std::vector<Chart>& chartsOf(size_t sheetIndex);
+    // 改标题时必须同步 chartTitles_ —— 存盘用的是那份，只改 Chart::title 不生效。
+    // 删除图表时也要同步删该表的标题，否则后续图表会套用错位的标题。
+    void syncChartTitle(size_t sheetIndex, size_t i, const std::string& title);
+    void eraseChartTitle(size_t sheetIndex, size_t i);
 
     // ---- 保存 ----
     bool save(const std::string& path, std::string& err) const;

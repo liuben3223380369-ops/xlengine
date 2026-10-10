@@ -65,8 +65,17 @@ std::string buildCommentsXml(const std::vector<CellNote>& notes) {
         // Excel 2019+ 用 xr:uid，可省略；这里不写，兼容性更好
         o << ">";
         o << "<text>";
-        // 批注文本是富文本：<r><t>段落</t></r>。
-        // 支持多行：按 \n 拆成多个 <r>，每段 <t> 前加空格保留（xml:space）
+        //
+        // 多行批注的换行必须写成 &#10;，不能靠拆成多个 <r>。
+        //
+        // <r> 是"富文本 run"（一段同格式的文字），不是段落。
+        // 拆成多个 <r> 时，自己的 reader 会把它们用 \n 连起来，
+        // 往返自测看起来完全正常；但 openpyxl 是把 run 直接拼接的，
+        // 于是换行在别的 reader 眼里就消失了。
+        //
+        // 这正是"自洽不等于合规"的又一例 —— 第一次做批注时只验证了
+        // "内容与作者能读到"，没验证多行文本，所以一直没发现。
+        //
         std::vector<std::string> lines;
         {
             std::string cur;
@@ -76,12 +85,12 @@ std::string buildCommentsXml(const std::vector<CellNote>& notes) {
             }
             lines.push_back(cur);
         }
+        o << "<r><t xml:space=\"preserve\">";
         for (size_t k = 0; k < lines.size(); k++) {
-            o << "<r>";
-            if (k > 0) o << "<rPr><sz val=\"10\"/></rPr>";   // 换行段稍微区分一下
-            o << "<t xml:space=\"preserve\">" << xmlEscape(lines[k]) << "</t>";
-            o << "</r>";
+            if (k) o << "&#10;";
+            o << xmlEscape(lines[k]);
         }
+        o << "</t></r>";
         o << "</text>";
         o << "</comment>\n";
     }

@@ -135,6 +135,18 @@ size_t Workbook::chartCount(size_t sheetIndex) const {
     return charts_[sheetIndex].size();
 }
 
+void Workbook::syncChartTitle(size_t sheetIndex, size_t i, const std::string& title) {
+    if (sheetIndex >= chartTitles_.size()) return;
+    if (i >= chartTitles_[sheetIndex].size()) chartTitles_[sheetIndex].resize(i + 1);
+    chartTitles_[sheetIndex][i] = title;
+}
+
+void Workbook::eraseChartTitle(size_t sheetIndex, size_t i) {
+    if (sheetIndex >= chartTitles_.size()) return;
+    if (i >= chartTitles_[sheetIndex].size()) return;
+    chartTitles_[sheetIndex].erase(chartTitles_[sheetIndex].begin() + (long)i);
+}
+
 std::vector<Chart>& Workbook::chartsOf(size_t sheetIndex) {
     return charts_.at(sheetIndex);
 }

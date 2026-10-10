@@ -136,6 +136,34 @@ _lib.xl_erase_range.argtypes = [ctypes.c_void_p, ctypes.c_int,
                                 ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int]
 _lib.xl_get_numfmt.restype = ctypes.c_void_p
 _lib.xl_get_numfmt.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int]
+# 数据验证 / 批注 / 图表编辑。
+# argtypes 必须显式声明：不声明的话 ctypes 会把 64 位指针按 C int 截断，
+# char* 参数直接段错误（这条踩过，见 README）。
+_lib.xl_add_dv.argtypes = [ctypes.c_void_p, ctypes.c_int,
+                           ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                           ctypes.c_int, ctypes.c_int, ctypes.c_char_p, ctypes.c_char_p,
+                           ctypes.c_int, ctypes.c_char_p, ctypes.c_char_p,
+                           ctypes.c_int, ctypes.c_int]
+_lib.xl_dv_count.argtypes = [ctypes.c_void_p, ctypes.c_int]
+_lib.xl_dv_info.restype = ctypes.c_void_p
+_lib.xl_dv_info.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int]
+_lib.xl_clear_dv.argtypes = [ctypes.c_void_p, ctypes.c_int]
+_lib.xl_add_note.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                             ctypes.c_char_p, ctypes.c_char_p]
+_lib.xl_note_count.argtypes = [ctypes.c_void_p, ctypes.c_int]
+_lib.xl_note_info.restype = ctypes.c_void_p
+_lib.xl_note_info.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int]
+_lib.xl_remove_note.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int]
+_lib.xl_clear_notes.argtypes = [ctypes.c_void_p, ctypes.c_int]
+_lib.xl_chart_count.argtypes = [ctypes.c_void_p, ctypes.c_int]
+_lib.xl_chart_info.restype = ctypes.c_void_p
+_lib.xl_chart_info.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int]
+_lib.xl_set_chart_type.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int]
+_lib.xl_set_chart_title.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int,
+                                    ctypes.c_char_p]
+_lib.xl_set_chart_anchor.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int,
+                                     ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int]
+_lib.xl_remove_chart.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int]
 _lib.xl_fill.argtypes = [ctypes.c_void_p, ctypes.c_int,
                          ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
                          ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int]
@@ -431,6 +459,94 @@ class Sheet:
 
     def clear_cf(self):
         return _lib.xl_clear_cf(self._wb._p, self._i) == 0
+
+    # ---- 数据验证 ----
+    DV_TYPES = ["", "整数", "小数", "序列(下拉)", "日期", "时间", "文本长度", "自定义公式"]
+    DV_OPS = ["", "介于", "不介于", "等于", "不等于", "大于", "小于", "大于等于", "小于等于"]
+
+    def add_dv(self, c0, r0, c1, r1, dtype=1, op=1, f1="", f2="",
+               err_style=0, err_title="", err_msg="", allow_blank=True, show_err=True):
+        return _lib.xl_add_dv(self._wb._p, self._i, c0, r0, c1, r1,
+                              dtype, op, _e(f1), _e(f2), err_style,
+                              _e(err_title), _e(err_msg),
+                              1 if allow_blank else 0, 1 if show_err else 0) == 0
+
+    def dv_count(self):
+        return _lib.xl_dv_count(self._wb._p, self._i)
+
+    def dv_list(self):
+        out = []
+        for i in range(self.dv_count()):
+            raw = _s(_lib.xl_dv_info(self._wb._p, self._i, i))
+            p = raw.split("\t")
+            if len(p) < 8:
+                continue
+            out.append({
+                "rect": [int(x) if x else 0 for x in p[0].split(",")],
+                "type": int(p[1] or 0), "op": int(p[2] or 0),
+                "f1": p[3], "f2": p[4],
+                "err_style": int(p[5] or 0), "err_title": p[6], "err": p[7],
+            })
+        return out
+
+    def clear_dv(self):
+        return _lib.xl_clear_dv(self._wb._p, self._i) == 0
+
+    # ---- 批注 ----
+    def add_note(self, col, row, text, author="xlengine"):
+        return _lib.xl_add_note(self._wb._p, self._i, col, row, _e(author), _e(text)) == 0
+
+    def note_count(self):
+        return _lib.xl_note_count(self._wb._p, self._i)
+
+    def note_list(self):
+        out = []
+        for i in range(self.note_count()):
+            p = _s(_lib.xl_note_info(self._wb._p, self._i, i)).split("\t")
+            if len(p) < 4:
+                continue
+            out.append({"col": int(p[0]), "row": int(p[1]),
+                        "author": p[2], "text": p[3]})
+        return out
+
+    def remove_note(self, col, row):
+        return _lib.xl_remove_note(self._wb._p, self._i, col, row) == 0
+
+    def clear_notes(self):
+        return _lib.xl_clear_notes(self._wb._p, self._i) == 0
+
+    # ---- 图表编辑 ----
+    CHART_TYPES = ["柱状图", "条形图", "折线图", "面积图", "饼图",
+                   "散点图", "堆积柱状", "堆积面积", "直方图"]
+
+    def chart_count(self):
+        return _lib.xl_chart_count(self._wb._p, self._i)
+
+    def chart_list(self):
+        out = []
+        for i in range(self.chart_count()):
+            p = _s(_lib.xl_chart_info(self._wb._p, self._i, i)).split("\t")
+            if len(p) < 5:
+                continue
+            out.append({
+                "type": int(p[0] or 0), "title": p[1],
+                "anchor": [int(x) for x in p[2].split(",")],
+                "nseries": int(p[3] or 0), "npoints": int(p[4] or 0),
+                "series": p[5:],
+            })
+        return out
+
+    def set_chart_type(self, i, t):
+        return _lib.xl_set_chart_type(self._wb._p, self._i, i, t) == 0
+
+    def set_chart_title(self, i, t):
+        return _lib.xl_set_chart_title(self._wb._p, self._i, i, _e(t)) == 0
+
+    def set_chart_anchor(self, i, c0, r0, c1, r1):
+        return _lib.xl_set_chart_anchor(self._wb._p, self._i, i, c0, r0, c1, r1) == 0
+
+    def remove_chart(self, i):
+        return _lib.xl_remove_chart(self._wb._p, self._i, i) == 0
 
     def copy_range(self, sc0, sr0, sc1, sr1, dc0, dr0):
         """复制区域，公式的相对引用会跟着平移。"""

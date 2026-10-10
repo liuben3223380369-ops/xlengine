@@ -14,6 +14,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <sstream>
+#include <algorithm>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -22,6 +23,8 @@
 #include "xlsx.hpp"
 #include "chart.hpp"
 #include "cf.hpp"
+#include "dv.hpp"
+#include "note.hpp"
 #include "sheetpdf.hpp"
 #include "style.hpp"
 #include "value.hpp"
@@ -605,6 +608,177 @@ int xl_erase_range(void* wb, int sheet, int c0, int r0, int c1, int r1) {
             targets.push_back(kv.first);
     for (auto& t : targets) sh.eraseCell(t.first, t.second);
     return (int)targets.size();
+}
+
+// ---------------------------------------------------------------------------
+// 数据验证
+// ---------------------------------------------------------------------------
+// type: 1=整数 2=小数 3=序列 4=日期 5=时间 6=文本长度 7=自定义公式
+// op:   0=无 1=介于 2=不介于 3=等于 4=不等于 5=大于 6=小于 7=≥ 8=≤
+// errStyle: 0=拒绝 1=警告 2=仅提示
+int xl_add_dv(void* wb, int sheet, int c0, int r0, int c1, int r1,
+              int type, int op, const char* f1, const char* f2,
+              int errStyle, const char* errTitle, const char* errMsg,
+              int allowBlank, int showErr) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->sheetCount()) { g_lastError = "表索引越界"; return 1; }
+
+    xl::DataValidation dv;
+    dv.type = (xl::DvType)type;
+    dv.op = (xl::DvOperator)op;
+    dv.errorStyle = (xl::DvErrorStyle)errStyle;
+    dv.rects.push_back({{c0, r0, c1, r1}});
+    dv.formula1 = f1 ? f1 : "";
+    dv.formula2 = f2 ? f2 : "";
+    dv.errorTitle = errTitle ? errTitle : "";
+    dv.error = errMsg ? errMsg : "";
+    dv.allowBlank = allowBlank != 0;
+    dv.showErrorMessage = showErr != 0;
+    w->addDv(sheet, dv);
+    return 0;
+}
+
+int xl_dv_count(void* wb, int sheet) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->allDvs().size()) return 0;
+    return (int)w->allDvs()[(size_t)sheet].size();
+}
+
+// 字段用 \t 分隔：rect \t type \t op \t f1 \t f2 \t errStyle \t errTitle \t err
+char* xl_dv_info(void* wb, int sheet, int i) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->allDvs().size()) return dupStr("");
+    const auto& v = w->allDvs()[(size_t)sheet];
+    if (i < 0 || i >= (int)v.size()) return dupStr("");
+    const xl::DataValidation& d = v[(size_t)i];
+    std::ostringstream o;
+    if (!d.rects.empty())
+        o << d.rects[0][0] << ',' << d.rects[0][1] << ',' << d.rects[0][2] << ',' << d.rects[0][3];
+    else o << ",,,";
+    o << '\t' << (int)d.type << '\t' << (int)d.op;
+    o << '\t' << d.formula1 << '\t' << d.formula2;
+    o << '\t' << (int)d.errorStyle << '\t' << d.errorTitle << '\t' << d.error;
+    return dupStr(o.str());
+}
+
+int xl_clear_dv(void* wb, int sheet) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->sheetCount()) { g_lastError = "表索引越界"; return 1; }
+    w->clearDvs(sheet);
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
+// 批注
+// ---------------------------------------------------------------------------
+int xl_add_note(void* wb, int sheet, int col, int row,
+                const char* author, const char* text) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->sheetCount()) { g_lastError = "表索引越界"; return 1; }
+    xl::CellNote n;
+    n.col = col; n.row = row;
+    n.author = author ? author : "";
+    n.text = text ? text : "";
+    w->addNote(sheet, n);
+    return 0;
+}
+
+int xl_note_count(void* wb, int sheet) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->allNotes().size()) return 0;
+    return (int)w->allNotes()[(size_t)sheet].size();
+}
+
+// col \t row \t author \t text
+char* xl_note_info(void* wb, int sheet, int i) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->allNotes().size()) return dupStr("");
+    const auto& v = w->allNotes()[(size_t)sheet];
+    if (i < 0 || i >= (int)v.size()) return dupStr("");
+    const xl::CellNote& n = v[(size_t)i];
+    std::ostringstream o;
+    o << n.col << '\t' << n.row << '\t' << n.author << '\t' << n.text;
+    return dupStr(o.str());
+}
+
+// 删单条批注。引擎只提供整体清除，这里直接操作内部的 vector。
+int xl_remove_note(void* wb, int sheet, int col, int row) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->allNotes().size()) { g_lastError = "表索引越界"; return 1; }
+    return w->removeNote(sheet, col, row) ? 0 : 1;
+}
+
+int xl_clear_notes(void* wb, int sheet) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->sheetCount()) { g_lastError = "表索引越界"; return 1; }
+    w->clearNotes(sheet);
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
+// 图表编辑
+// ---------------------------------------------------------------------------
+int xl_chart_count(void* wb, int sheet) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->sheetCount()) return 0;
+    return (int)w->chartCount((size_t)sheet);
+}
+
+// type \t title \t anchor(c0,r0,c1,r1) \t 系列数 \t 点数
+char* xl_chart_info(void* wb, int sheet, int i) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->sheetCount()) return dupStr("");
+    xl::Chart* c = w->chart(sheet, (size_t)i);
+    if (!c) return dupStr("");
+    std::ostringstream o;
+    o << (int)c->type << '\t' << c->title;
+    o << '\t' << c->anchor.fromCol << ',' << c->anchor.fromRow << ','
+      << c->anchor.toCol << ',' << c->anchor.toRow;
+    o << '\t' << c->series.size() << '\t' << c->pointCount();
+    // 系列名
+    for (auto& s : c->series) o << '\t' << s.name;
+    return dupStr(o.str());
+}
+
+int xl_set_chart_type(void* wb, int sheet, int i, int type) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->sheetCount()) { g_lastError = "表索引越界"; return 1; }
+    xl::Chart* c = w->chart(sheet, (size_t)i);
+    if (!c) { g_lastError = "图表索引越界"; return 1; }
+    c->type = (xl::ChartType)type;
+    return 0;
+}
+
+int xl_set_chart_title(void* wb, int sheet, int i, const char* title) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->sheetCount()) { g_lastError = "表索引越界"; return 1; }
+    xl::Chart* c = w->chart(sheet, (size_t)i);
+    if (!c) { g_lastError = "图表索引越界"; return 1; }
+    c->title = title ? title : "";
+    // chartTitles_ 是存盘时实际用的那份，只改 Chart::title 会不同步
+    w->syncChartTitle((size_t)sheet, (size_t)i, c->title);
+    return 0;
+}
+
+int xl_set_chart_anchor(void* wb, int sheet, int i, int c0, int r0, int c1, int r1) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->sheetCount()) { g_lastError = "表索引越界"; return 1; }
+    xl::Chart* c = w->chart(sheet, (size_t)i);
+    if (!c) { g_lastError = "图表索引越界"; return 1; }
+    c->anchor.fromCol = c0; c->anchor.fromRow = r0;
+    c->anchor.toCol = c1;   c->anchor.toRow = r1;
+    return 0;
+}
+
+int xl_remove_chart(void* wb, int sheet, int i) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->sheetCount()) { g_lastError = "表索引越界"; return 1; }
+    if (i < 0 || i >= (int)w->chartCount((size_t)sheet)) { g_lastError = "图表索引越界"; return 1; }
+    auto& v = w->chartsOf((size_t)sheet);
+    v.erase(v.begin() + i);
+    // 标题表要同步删，否则后面的图表会套用错位的标题
+    w->eraseChartTitle((size_t)sheet, (size_t)i);
+    return 0;
 }
 
 // ---- 结构性编辑 ----
