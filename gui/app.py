@@ -91,6 +91,16 @@ class MainWindow(QMainWindow):
             self.excel_ui = None
             print("Excel 风格增强未启用: %s" % e)
 
+        # 插件系统。放在最后：插件会往工具栏/右键菜单加东西，
+        # 必须等主界面构造完才有地方可加。
+        try:
+            from gui.plugins import PluginHost
+            from gui.builtin_plugins import install_builtins
+            self.plugin_host = install_builtins(PluginHost(), self)
+        except Exception as e:
+            self.plugin_host = None
+            print("插件系统未启用: %s" % e)
+
         self.setWindowTitle(APP_NAME)
         self.resize(1100, 700)
         self._new_workbook()
@@ -139,6 +149,9 @@ class MainWindow(QMainWindow):
 
         self.act_funcs = QAction("函数列表…", self)
         self.act_funcs.triggered.connect(self._show_funcs)
+        self.act_macro = QAction("宏管理器…", self)
+        self.act_macro.setShortcut("Ctrl+Alt+M")
+        self.act_macro.triggered.connect(self._open_macros)
         self.act_about = QAction("关于", self)
         self.act_about.triggered.connect(self._about)
         self.act_demo = QAction("填入示例数据", self)
@@ -190,6 +203,10 @@ class MainWindow(QMainWindow):
         fm.addSeparator()
         fm.addAction("列宽…", self._set_col_width)
         fm.addAction("行高…", self._set_row_height)
+
+        # 宏单独一个菜单 —— 它是"自动化"入口，混在帮助里没人找得到
+        mc = m.addMenu("宏(&M)")
+        mc.addAction(self.act_macro)
 
         h = m.addMenu("帮助(&H)")
         h.addAction(self.act_demo)
@@ -838,6 +855,15 @@ class MainWindow(QMainWindow):
         self.dirty = True
         self._update_title()
         self.status_label.setText("已填入示例数据（含公式、百分比格式、合计行）")
+
+
+    def _open_macros(self):
+        """打开宏管理器。"""
+        try:
+            from gui.macrodialog import open_macro_dialog
+            open_macro_dialog(self)
+        except Exception as e:
+            QMessageBox.warning(self, "宏管理器", "无法打开: %s" % e)
 
 
 def main():
