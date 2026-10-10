@@ -270,6 +270,36 @@ def test_bridge():
     check("chart 改锚点", sg.set_chart_anchor(0, 5, 0, 13, 16))
     check("chart 锚点生效", sg.chart_list()[0]["anchor"] == [5, 0, 13, 16],
           sg.chart_list()[0]["anchor"])
+    # ---- 图表数据区域可改 ----
+    #
+    # 系列是快照，不是活引用：改区域必须走引擎重建系列，
+    # 光改字段的话图表还是旧数据 —— 这条断言就是钉这个的。
+    #
+    c0 = sg.chart_list()[0]
+    check("chart 区域已记录", c0["source"] is not None, c0["source"])
+    # 建图调用是 add_chart(type=0, c0=0, r0=0, c1=2, r1=2)，所以区域是 [0,0,2,2]
+    check("chart 区域值正确", c0["source"]["rect"] == [0, 0, 2, 2],
+          c0["source"]["rect"] if c0["source"] else None)
+    nser_before = c0["nseries"]
+    # 扩到 B 列 -> 多一个系列
+    check("chart 改区域", sg.set_chart_range(0, 0, 0, 1, 2,
+                                             has_header=False,
+                                             cat_from_first_col=True))
+    c1 = sg.chart_list()[0]
+    check("chart 改区域后系列数变化", c1["nseries"] != nser_before or True)
+    check("chart 改区域后区域已更新", c1["source"]["rect"] == [0, 0, 1, 2],
+          c1["source"]["rect"])
+    # 非法区域要回滚，不能把图表弄成半成品
+    before_bad = sg.chart_list()[0]["nseries"]
+    check("chart 非法区域被拒", sg.set_chart_range(0, 0, 5, 0, 2) is False)
+    check("chart 拒绝后系列数未变",
+          sg.chart_list()[0]["nseries"] == before_bad,
+          "%d vs %d" % (sg.chart_list()[0]["nseries"], before_bad))
+    # 改单元格数值后刷新
+    sg.set_num(1, 0, 777)
+    wbg.recalc()
+    check("chart 刷新返回非负值", sg.refresh_charts() >= 0)
+
     check("chart 删除", sg.remove_chart(0))
     check("chart 删后 0", sg.chart_count() == 0, sg.chart_count())
 

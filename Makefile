@@ -4,7 +4,7 @@ DEPFLAGS  = -MMD -MP
 
 SRCS     := src/functions.cpp src/fn_date.cpp src/fn_math.cpp src/fn_stat.cpp src/fn_stat2.cpp src/fn_array.cpp src/fn_more.cpp \
             src/fn_text.cpp src/fn_eng.cpp src/fn_fin.cpp src/fn_fill.cpp src/fn_fill2.cpp src/fn_fill3.cpp src/fn_fill4.cpp src/ttf.cpp src/pdf.cpp src/sheetpdf.cpp src/chartpdf.cpp src/tui.cpp src/refshift.cpp src/numfmt.cpp src/style.cpp src/cf.cpp src/dv.cpp src/note.cpp src/view.cpp src/image.cpp src/depgraph.cpp src/precedent.cpp \
-            src/eval.cpp src/parser.cpp src/sheet.cpp src/layout.cpp src/canvas.cpp src/render.cpp src/zip.cpp src/xml.cpp src/chartxml.cpp src/xlsx.cpp src/edit.cpp src/gui_bridge.cpp src/main.cpp
+            src/eval.cpp src/parser.cpp src/sheet.cpp src/layout.cpp src/canvas.cpp src/render.cpp src/zip.cpp src/xml.cpp src/chartxml.cpp src/chartsrc.cpp src/xlsx.cpp src/edit.cpp src/gui_bridge.cpp src/main.cpp
 OBJS     := $(SRCS:.cpp=.o)
 DEPS     := $(OBJS:.o=.d)
 TARGET   := xl
@@ -30,8 +30,12 @@ lib: $(LIB_NAME)
 $(LIB_NAME): $(LIB_OBJS)
 	$(CXX) -std=c++17 -O2 -shared -o $@ $(LIB_OBJS) -lz
 
+# 依赖文件必须自己生成 —— 少了 $(DEPFLAGS) 的话，改了头文件不会触发重编，
+# 于是 .so 里混着按旧结构体布局编译出来的对象文件。
+# 表现是运行期莫名其妙的 std::bad_array_new_length / 段错误，
+# 而且编译零告警、链接也过得去。
 $(LIB_DIR)/%.o: src/%.cpp | $(LIB_DIR)
-	$(CXX) -std=c++17 -O2 -Wall -Wextra -fPIC -I src -c $< -o $@
+	$(CXX) -std=c++17 -O2 -Wall -Wextra -fPIC -I src $(DEPFLAGS) -MF $(@:.o=.d) -c $< -o $@
 
 $(LIB_DIR):
 	mkdir -p $(LIB_DIR)
@@ -139,42 +143,42 @@ tests/xlbench: tests/bench.cpp $(filter-out src/main.o,$(OBJS))
 
 # 跑全部语义测试（Excel 行为 + 新函数）
 test: $(TARGET) tests/xltest tests/xltest2 tests/xlsxlt tests/chartt tests/fillt tests/pdft tests/tuit tests/refshiftt tests/numfmtt tests/stylet tests/cft tests/dvt tests/notet tests/sharedt tests/viewt tests/imgt tests/dnt tests/dept tests/editt tests/auditt tests/smoket tests/robustt tests/stresst
-	./$(TARGET) --test
+	sh tools/runtest.sh ./$(TARGET) --test
 	@echo ""
-	./tests/xltest
+	sh tools/runtest.sh ./tests/xltest
 	@echo ""
-	./tests/xltest2
+	sh tools/runtest.sh ./tests/xltest2
 	@echo ""
-	./tests/xlsxlt
+	sh tools/runtest.sh ./tests/xlsxlt
 	@echo ""
-	./tests/chartt
+	sh tools/runtest.sh ./tests/chartt
 	@echo ""
-	./tests/fillt
+	sh tools/runtest.sh ./tests/fillt
 	@echo ""
-	./tests/pdft
+	sh tools/runtest.sh ./tests/pdft
 	@echo ""
-	./tests/tuit
+	sh tools/runtest.sh ./tests/tuit
 	@echo ""
-	./tests/refshiftt
+	sh tools/runtest.sh ./tests/refshiftt
 	@echo ""
-	./tests/numfmtt
+	sh tools/runtest.sh ./tests/numfmtt
 	@echo ""
 	./xl --funcs | sort -u > /tmp/xl_funcs.txt
-	./tests/smoket /tmp/xl_funcs.txt
-	./tests/cft
-	./tests/dvt
-	./tests/notet
-	./tests/sharedt
-	./tests/viewt
-	./tests/imgt
-	./tests/dnt
-	./tests/dept
-	./tests/editt
+	sh tools/runtest.sh ./tests/smoket /tmp/xl_funcs.txt
+	sh tools/runtest.sh ./tests/cft
+	sh tools/runtest.sh ./tests/dvt
+	sh tools/runtest.sh ./tests/notet
+	sh tools/runtest.sh ./tests/sharedt
+	sh tools/runtest.sh ./tests/viewt
+	sh tools/runtest.sh ./tests/imgt
+	sh tools/runtest.sh ./tests/dnt
+	sh tools/runtest.sh ./tests/dept
+	sh tools/runtest.sh ./tests/editt
 	@echo ""
-	./tests/auditt
-	./tests/robustt
-	./tests/stresst
-	./tests/stylet
+	sh tools/runtest.sh ./tests/auditt
+	sh tools/runtest.sh ./tests/robustt
+	sh tools/runtest.sh ./tests/stresst
+	sh tools/runtest.sh ./tests/stylet
 
 bench: tests/xlbench
 	./tests/xlbench
@@ -217,6 +221,7 @@ clean:
 	rm -rf $(WINCHECK_DIR)
 
 -include $(DEPS)
+-include $(LIB_OBJS:.o=.d)
 
 .PHONY: all test bench funcs clean
 

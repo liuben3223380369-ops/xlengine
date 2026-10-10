@@ -14,6 +14,9 @@
 
 namespace xl {
 
+class Sheet;   // 前向声明，避免头文件互相包含
+
+
 enum class ChartType {
     Column,          // 垂直柱状（簇状）
     Bar,             // 水平条形
@@ -58,9 +61,22 @@ struct ChartAnchor {
     int toCol = 8, toRow = 16;           // 默认占 8 列 × 16 行
 };
 
+// 图表的数据源区域。
+//
+// 有它才能"改数据区域"：以前系列只是值快照，没有任何线索指向具体单元格，
+// 于是改区域只能删掉重建。记下区域后，按新区域重新生成系列即可。
+struct ChartSource {
+    bool valid = false;
+    std::string sheetName;          // 源数据所在表（拼绝对引用要用）
+    int c0 = 0, r0 = 0, c1 = 0, r1 = 0;
+    bool hasHeader = false;         // 首行/首列是标题
+    bool catFromFirstCol = true;    // true = 每列一个系列，首列作分类标签
+};
+
 struct Chart {
     ChartType type = ChartType::Column;
     std::string title;
+    ChartSource source;             // 数据源区域（可为空 = 未知来源）
     std::vector<DataSeries> series;
     std::vector<std::string> categories; // X 轴分类标签（Scatter 忽略）
     Axis x, y;
@@ -82,6 +98,15 @@ struct Chart {
 
 // 默认调色板（Excel 2013+ 的 Office 主题色顺序）
 const char* paletteColor(int index);
+
+// 按 ch.source 重新生成系列与分类标签。
+//
+// 添加图表和改数据区域走的是同一份实现 —— 分成两份写的话，
+// 两边迟早会不一致（这个项目已经在别处栽过重复实现的跟头）。
+//
+// 系列仍是快照，不是活引用：改单元格数值后图表不会自动更新，
+// 需要重新调用本函数。
+bool rebuildChartFromSource(Sheet& sh, Chart& ch, std::string& err);
 
 // ---------------------------------------------------------------------------
 // 渲染输出

@@ -76,6 +76,13 @@ int xl_wb_save(void* wb, const char* path) {
         g_lastError = err.empty() ? "保存失败" : err;
         return 1;
     }
+    //
+    // 成功时必须清空错误。
+    // 不清的话上一次失败调用的错误会一直留着，调用方"保存完顺手看一眼
+    // last_error"就会读到一个和自己无关的旧错误 —— 表现为"明明存盘成功了
+    // 却报了个错"。测试里就是这么误判的。
+    //
+    g_lastError.clear();
     return 0;
 }
 
@@ -417,50 +424,62 @@ int xl_add_chart(void* wb, int sheet, int type,
     ch.anchor.toCol = ch.anchor.fromCol + 8;
     ch.anchor.toRow = r0 + 16;
 
-    std::string sn = sh.name();
-    auto absRange = [&](int a, int b, int c, int d) {
-        return sn + "!$" + xl::colToName(a) + "$" + std::to_string(b + 1) +
-               ":$" + xl::colToName(c) + "$" + std::to_string(d + 1);
-    };
+    // 记下数据源：有它才能事后改区域
+    ch.source.valid = true;
+    ch.source.sheetName = sh.name();
+    ch.source.c0 = c0; ch.source.r0 = r0;
+    ch.source.c1 = c1; ch.source.r1 = r1;
+    ch.source.hasHeader = hasHeader != 0;
+    ch.source.catFromFirstCol = catFromFirstCol != 0;
 
-    int dataR0 = r0;
-    if (hasHeader) dataR0 = r0 + 1;
-
-    // 系列来自列还是行：Excel 默认按列（首列作分类标签）
-    if (catFromFirstCol) {
-        for (int c = c0 + 1; c <= c1; c++) {
-            xl::DataSeries s;
-            std::string nm;
-            if (hasHeader) nm = sh.display(c, r0);
-            s.name = nm.empty() ? ("系列" + std::to_string(c - c0)) : nm;
-            s.catRange = absRange(c0, dataR0, c0, r1);
-            s.valRange = absRange(c, dataR0, c, r1);
-            for (int r = dataR0; r <= r1; r++) {
-                xl::Value v = sh.valueAt(c, r);
-                s.values.push_back(v.isNum() ? v.n : 0.0);
-            }
-            ch.series.push_back(s);
-        }
-        for (int r = dataR0; r <= r1; r++) ch.categories.push_back(sh.display(c0, r));
-    } else {
-        for (int r = r0 + (hasHeader ? 1 : 0); r <= r1; r++) {
-            xl::DataSeries s;
-            std::string nm;
-            if (hasHeader) nm = sh.display(c0, r);
-            s.name = nm.empty() ? ("系列" + std::to_string(r - r0 + 1)) : nm;
-            s.catRange = absRange(c0 + 1, dataR0, c1, dataR0);
-            s.valRange = absRange(c0 + 1, r, c1, r);
-            for (int c = c0 + 1; c <= c1; c++) {
-                xl::Value v = sh.valueAt(c, r);
-                s.values.push_back(v.isNum() ? v.n : 0.0);
-            }
-            ch.series.push_back(s);
-        }
-        for (int c = c0 + 1; c <= c1; c++) ch.categories.push_back(sh.display(c, hasHeader ? r0 : r0));
-    }
-
-    if (ch.series.empty()) { g_lastError = "选中区域没有可用数据"; return -1; }
+    std::string e;
+    if (!xl::rebuildChartFromSource(sh, ch, e)) { g_lastError = e; return -1; }
     return w->addChart((size_t)sheet, ch, ch.title);
+}
+
+// 改已有图表的数据区域。
+//
+// 关键：不能只改区域字段就完事 —— 系列是值快照，
+// 必须按新区域重新生成，否则图表显示的还是旧数据。
+// 锚点不动（用户可能手动挪过位置）。
+int xl_set_chart_range(void* wb, int sheet, int i,
+                       int c0, int r0, int c1, int r1,
+                       int hasHeader, int catFromFirstCol) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->sheetCount()) { g_lastError = "表索引越界"; return 1; }
+    xl::Chart* c = w->chart(sheet, (size_t)i);
+    if (!c) { g_lastError = "图表索引越界"; return 1; }
+
+    xl::Chart saved = *c;             // 失败时回滚，别把图表弄成半成品
+    c->source.valid = true;
+    c->source.sheetName = w->sheet((size_t)sheet).name();
+    c->source.c0 = c0; c->source.r0 = r0;
+    c->source.c1 = c1; c->source.r1 = r1;
+    c->source.hasHeader = hasHeader != 0;
+    c->source.catFromFirstCol = catFromFirstCol != 0;
+
+    std::string e;
+    if (!xl::rebuildChartFromSource(w->sheet((size_t)sheet), *c, e)) {
+        *c = saved;
+        g_lastError = e;
+        return 1;
+    }
+    return 0;
+}
+
+// 改完单元格数值后刷新所有图表（系列是快照，不会自动更新）
+int xl_refresh_charts(void* wb, int sheet) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->sheetCount()) { g_lastError = "表索引越界"; return -1; }
+    xl::Sheet& sh = w->sheet((size_t)sheet);
+    int n = 0;
+    for (size_t i = 0; i < w->chartCount((size_t)sheet); i++) {
+        xl::Chart* c = w->chart(sheet, i);
+        if (!c || !c->source.valid) continue;
+        std::string e;
+        if (xl::rebuildChartFromSource(sh, *c, e)) n++;
+    }
+    return n;
 }
 
 // ---- 填充 ----
@@ -782,6 +801,12 @@ char* xl_chart_info(void* wb, int sheet, int i) {
     o << '\t' << c->anchor.fromCol << ',' << c->anchor.fromRow << ','
       << c->anchor.toCol << ',' << c->anchor.toRow;
     o << '\t' << c->series.size() << '\t' << c->pointCount();
+    // 源区域（改数据区域时要用它预填表单）
+    o << '\t' << (c->source.valid ? 1 : 0)
+      << '\t' << c->source.c0 << ',' << c->source.r0 << ','
+      << c->source.c1 << ',' << c->source.r1
+      << '\t' << (c->source.hasHeader ? 1 : 0)
+      << '\t' << (c->source.catFromFirstCol ? 1 : 0);
     // 系列名
     for (auto& s : c->series) o << '\t' << s.name;
     return dupStr(o.str());

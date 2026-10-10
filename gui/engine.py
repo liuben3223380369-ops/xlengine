@@ -164,6 +164,10 @@ _lib.xl_set_chart_title.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int,
 _lib.xl_set_chart_anchor.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int,
                                      ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int]
 _lib.xl_remove_chart.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int]
+_lib.xl_set_chart_range.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int,
+                                    ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                                    ctypes.c_int, ctypes.c_int]
+_lib.xl_refresh_charts.argtypes = [ctypes.c_void_p, ctypes.c_int]
 _lib.xl_fill.argtypes = [ctypes.c_void_p, ctypes.c_int,
                          ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
                          ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int]
@@ -528,11 +532,19 @@ class Sheet:
             p = _s(_lib.xl_chart_info(self._wb._p, self._i, i)).split("\t")
             if len(p) < 5:
                 continue
+            src = None
+            if len(p) >= 9 and p[5] == "1":
+                src = {
+                    "rect": [int(x) for x in p[6].split(",")],
+                    "has_header": p[7] == "1",
+                    "cat_from_first_col": p[8] == "1",
+                }
             out.append({
                 "type": int(p[0] or 0), "title": p[1],
                 "anchor": [int(x) for x in p[2].split(",")],
                 "nseries": int(p[3] or 0), "npoints": int(p[4] or 0),
-                "series": p[5:],
+                "source": src,
+                "series": p[9:] if src else p[5:],
             })
         return out
 
@@ -544,6 +556,21 @@ class Sheet:
 
     def set_chart_anchor(self, i, c0, r0, c1, r1):
         return _lib.xl_set_chart_anchor(self._wb._p, self._i, i, c0, r0, c1, r1) == 0
+
+    def set_chart_range(self, i, c0, r0, c1, r1,
+                        has_header=False, cat_from_first_col=True):
+        """改图表的数据区域。系列是快照，改完会按新区域重新生成。
+
+        has_header: 首行/首列是标题
+        cat_from_first_col: True = 每列一个系列（首列作分类标签）
+        """
+        return _lib.xl_set_chart_range(self._wb._p, self._i, i, c0, r0, c1, r1,
+                                       1 if has_header else 0,
+                                       1 if cat_from_first_col else 0) == 0
+
+    def refresh_charts(self):
+        """按当前单元格数值刷新全部图表（系列是快照，不会自动更新）。"""
+        return _lib.xl_refresh_charts(self._wb._p, self._i)
 
     def remove_chart(self, i):
         return _lib.xl_remove_chart(self._wb._p, self._i, i) == 0
@@ -611,8 +638,9 @@ class Workbook:
 
     def save(self, path):
         ok = _lib.xl_wb_save(self._p, _e(str(path))) == 0
-        if not ok and not self.last_error:
-            return False
+        # 成功后 last_error 应为空；读到非空说明是上一次失败残留
+        if ok and self.last_error:
+            raise AssertionError("last_error 在成功后未清空: %r" % self.last_error)
         return ok
 
     def load(self, path):

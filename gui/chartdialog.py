@@ -11,9 +11,9 @@
 2. **删图表要同步删标题。** 否则后面图表的标题会整体错位——
    删了第 1 张，第 2 张会套用第 1 张的标题。
 
-3. **改数据区域没有直接接口。** 图表的系列是解析数据时按快照存进
-   `DataSeries::values` 的，不是活引用，所以改区域只能"删掉重建"。
-   openpyxl 也一样：它读回来的是缓存值。
+3. **系列是快照，不是活引用。** 改数据区域必须让引擎按新区域重新生成
+   系列（`rebuildChartFromSource`），光改字段的话图表还是旧数据。
+   同理，改单元格数值后要点「按当前数据刷新」。
 """
 from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox,
                                QFormLayout, QHBoxLayout, QLabel, QLineEdit,
@@ -65,6 +65,36 @@ class ChartDialog(QDialog):
         self.lbl_pos.setStyleSheet("color:#666")
         f.addRow("", self.lbl_pos)
 
+        rng = QHBoxLayout()
+        self.sp_dc0 = QSpinBox(); self.sp_dc0.setRange(0, 16383)
+        self.sp_dr0 = QSpinBox(); self.sp_dr0.setRange(0, 1048575)
+        self.sp_dc1 = QSpinBox(); self.sp_dc1.setRange(0, 16383)
+        self.sp_dr1 = QSpinBox(); self.sp_dr1.setRange(0, 1048575)
+        for sp in (self.sp_dc0, self.sp_dr0, self.sp_dc1, self.sp_dr1):
+            sp.setFixedWidth(70)
+            sp.valueChanged.connect(self._sync_range_label)
+        rng.addWidget(QLabel("数据"))
+        rng.addWidget(self.sp_dc0)
+        rng.addWidget(self.sp_dr0)
+        rng.addWidget(QLabel("到"))
+        rng.addWidget(self.sp_dc1)
+        rng.addWidget(self.sp_dr1)
+        rng.addStretch(1)
+        f.addRow("数据源：", rng)
+
+        self.lbl_range = QLabel("")
+        self.lbl_range.setStyleSheet("color:#666")
+        f.addRow("", self.lbl_range)
+
+        self.chk_header = QCheckBox("首行/首列是标题")
+        self.chk_bycol = QCheckBox("每列一个系列（首列作分类）")
+        self.chk_bycol.setChecked(True)
+        hh = QHBoxLayout()
+        hh.addWidget(self.chk_header)
+        hh.addWidget(self.chk_bycol)
+        hh.addStretch(1)
+        f.addRow("", hh)
+
         root.addLayout(f)
 
         # ---- 按钮 ----
@@ -73,14 +103,18 @@ class ChartDialog(QDialog):
         b_apply.clicked.connect(self._apply)
         b_del = QPushButton("删除图表")
         b_del.clicked.connect(self._delete)
+        b_ref = QPushButton("按当前数据刷新")
+        b_ref.setToolTip("系列是快照，改了单元格数值后用它让图表跟上")
+        b_ref.clicked.connect(self._refresh_data)
         row.addWidget(b_apply)
         row.addWidget(b_del)
+        row.addWidget(b_ref)
         row.addStretch(1)
         root.addLayout(row)
 
         self.lbl_hint = QLabel(
-            "提示：图表数据是添加时的快照，不是活引用 —— "
-            "改数据区域请用「删除图表」后重新插入。")
+            "提示：图表数据是快照，不是活引用 —— "
+            "改了单元格数值请点「按当前数据刷新」。")
         self.lbl_hint.setWordWrap(True)
         self.lbl_hint.setStyleSheet("color:#666")
         root.addWidget(self.lbl_hint)
@@ -115,6 +149,33 @@ class ChartDialog(QDialog):
         self.sp_c0.setValue(a[0]); self.sp_r0.setValue(a[1])
         self.sp_c1.setValue(a[2]); self.sp_r1.setValue(a[3])
         self._sync_pos_label()
+        src = c.get("source")
+        # 没有源区域（比如从别人给的文件里读回来的图表）就按锚点留空并禁用，
+        # 而不是猜一个区域 —— 猜错的话改一下就把数据弄没了
+        has = src is not None
+        for w in (self.sp_dc0, self.sp_dr0, self.sp_dc1, self.sp_dr1,
+                  self.chk_header, self.chk_bycol):
+            w.setEnabled(has)
+        if has:
+            r = src["rect"]
+            self.sp_dc0.setValue(r[0]); self.sp_dr0.setValue(r[1])
+            self.sp_dc1.setValue(r[2]); self.sp_dr1.setValue(r[3])
+            self.chk_header.setChecked(src["has_header"])
+            self.chk_bycol.setChecked(src["cat_from_first_col"])
+        self._sync_range_label()
+
+    def _sync_range_label(self):
+        self.lbl_range.setText("数据区 %s%d : %s%d"
+                               % (col_name(self.sp_dc0.value()), self.sp_dr0.value() + 1,
+                                  col_name(self.sp_dc1.value()), self.sp_dr1.value() + 1))
+
+    def _refresh_data(self):
+        n = self.sheet.refresh_charts()
+        self._refresh()
+        if self.list.count():
+            self.list.setCurrentRow(min(self.list.currentRow(), self.list.count() - 1))
+        QMessageBox.information(self, "刷新完成", "已按当前数据刷新 %d 个图表。" % n
+                                if n >= 0 else "刷新失败")
 
     def _sync_pos_label(self):
         self.lbl_pos.setText("锚点 %s%d : %s%d"
@@ -131,6 +192,15 @@ class ChartDialog(QDialog):
         self.sheet.set_chart_title(i, self.ed_title.text().strip())
         self.sheet.set_chart_anchor(i, self.sp_c0.value(), self.sp_r0.value(),
                                     self.sp_c1.value(), self.sp_r1.value())
+        # 数据区域：必须走引擎重建系列，光改字段图表还是旧数据
+        if self.sp_dc0.isEnabled():
+            ok = self.sheet.set_chart_range(
+                i, self.sp_dc0.value(), self.sp_dr0.value(),
+                self.sp_dc1.value(), self.sp_dr1.value(),
+                self.chk_header.isChecked(), self.chk_bycol.isChecked())
+            if not ok:
+                QMessageBox.critical(self, "改数据区域失败",
+                                     self.sheet._wb.last_error)
         self._refresh()
         self.list.setCurrentRow(i)
 
