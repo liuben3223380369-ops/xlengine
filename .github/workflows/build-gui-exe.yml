@@ -40,15 +40,18 @@ jobs:
           tail -5 build-dll.log
           ls -la dist/xlengine.dll 2>/dev/null || exit 1
 
-      # CI 的运行日志在外部取不到（结果域名被拦），失败时把日志当 artifact
-      # 传出来，才能知道到底是哪一步挂了。
-      - name: 上传编译日志
+      # CI 的运行日志在外部取不到（结果域名被拦），artifact 下载域名同样被拦。
+      # 所以失败时把日志推到独立分支，用 contents API 读回来。
+      - name: 回传编译日志
         if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-dll-log
-          path: build-dll.log
-          if-no-files-found: ignore
+        run: |
+          git config user.name "ci-bot"
+          git config user.email "ci-bot@example.com"
+          mkdir -p ci-logs
+          cp build-dll.log ci-logs/build-dll.log || echo "日志缺失"
+          git add -f ci-logs/build-dll.log
+          git commit -m "CI 日志: build-dll run ${{ github.run_id }}" || echo "无变化"
+          git push -f origin HEAD:ci-logs-dll || echo "推送失败"
 
       - uses: actions/upload-artifact@v4
         with:
