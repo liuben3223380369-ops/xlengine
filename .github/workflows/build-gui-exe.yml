@@ -147,19 +147,20 @@ jobs:
         shell: bash
         run: |
           ls -la dist/xlengine/xlengine.exe
-          # PyInstaller 6.x 的 --onedir 把所有依赖放进 _internal/
-          # （5.x 是平铺在 dist/xlengine/ 里）。两个位置都找，兼容两种版本。
-          for d in dist/xlengine dist/xlengine/_internal; do
-            if [ -f "$d/xlengine.dll" ]; then DLLDIR="$d"; break; fi
-          done
-          echo "-- 引擎 DLL --"
-          ls -la "${DLLDIR:-未找到}/xlengine.dll" || {
-            echo "!! 引擎 DLL 未被打包 —— 程序启动会报找不到共享库"; exit 1; }
+          # 先列目录结构，再全盘找 DLL。
+          # 猜路径容易猜错（PyInstaller 5.x 平铺、6.x 放 _internal/），
+          # 一次列清楚比反复试错快。
+          echo "-- 顶层 --"
+          ls dist/xlengine
+          echo "-- _internal 是否存在 --"
+          ls dist/xlengine/_internal 2>/dev/null | head -20 || echo "（无 _internal）"
+          echo "-- 引擎 DLL 在哪 --"
+          find dist/xlengine -iname "xlengine.dll" 2>/dev/null || true
           echo "-- Qt 运行库 --"
-          ls "$DLLDIR" | grep -iE "Qt6Core|Qt6Gui|Qt6Widgets" | head -5
+          find dist/xlengine -iname "Qt6Widgets.dll" -o -iname "Qt6Gui.dll" \
+               -o -iname "Qt6Core.dll" 2>/dev/null | head -5
           echo "-- 界面源码 --"
-          ls "$DLLDIR/gui/"*.py 2>/dev/null | head -6 \
-            || echo "（未找到 gui 目录，检查 --add-data 是否生效）"
+          find dist/xlengine -name "app.py" -path "*gui*" 2>/dev/null | head -3
           echo "-- 总体积 --"
           du -sh dist/xlengine
 
