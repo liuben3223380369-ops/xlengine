@@ -86,24 +86,87 @@ if ! echo "$ZLIB_FLAG" | grep -q "z"; then
 fi
 echo "   链接参数: $ZLIB_FLAG"
 
+# ---- mingw 系统头文件 ----
+#
+# 有些环境下编译器（尤其是被复制到非标准 prefix 的 mingw）推导不出自己的
+# 系统头文件目录，于是 #include <windows.h> 报 No such file or directory。
+# 这里显式探测并补 -isystem：正常安装的 mingw 本来就找得到，加了也无害。
+echo "-- 检查 mingw 系统头文件 --"
+MINGW_INC=""
+for d in "/usr/${TRIPLE}/include" "/usr/local/${TRIPLE}/include" \
+         "/opt/${TRIPLE}/include" "$(dirname "$(command -v "$CXX")")/../${TRIPLE}/include"; do
+    if [ -f "$d/windows.h" ]; then MINGW_INC="$d"; break; fi
+done
+if [ -n "$MINGW_INC" ]; then
+    echo "   $MINGW_INC"
+    # 必须是 -idirafter（追加到搜索链末尾），**不能**用 -isystem。
+    # -isystem 会把目录插到 C++ 头目录之前，于是 C++ 的 stdlib.h 里那句
+    # #include_next <stdlib.h> 会跳过它 —— 报 "stdlib.h: No such file"。
+    SYSINC="-idirafter $MINGW_INC"
+else
+    echo "   （未显式指定，用编译器默认搜索路径）"
+    SYSINC=""
+fi
+
 # ---- 编译 ----
 echo "-- 编译 --"
 mkdir -p .build-win
-SRCS=$(ls src/*.cpp | grep -v 'src/main.cpp' | tr '\n' ' ')
-# 单独列 main.cpp，避免上面的 grep 把命令行截断
-SRCS="$SRCS src/main.cpp"
+# 排除两个文件：
+#   main.cpp  —— 命令行入口（控制台子系统用，GUI 不需要）
+#   tui.cpp   —— 终端 UI，依赖 termios / Windows Console API
+# 换成 winmain.cpp（wWinMain 入口）+ wingui.cpp（原生 Win32 界面，已被 ls 收录）。
+SRCS=$(ls src/*.cpp | grep -v 'src/main.cpp' | grep -v 'src/tui.cpp' | tr '\n' ' ')
+SRCS="$SRCS src/winmain.cpp"
 
-# -D_CRT_SECURE_NO_WARNINGS : MSVC 风格的安全警告（这里不用 *_s，但保留以防运行环境差异）
-# -static-*                 : 静态链接运行时，目标机器无需装 MinGW DLL
-# -municode 不用            : 我们用 main() 不是 wmain()
-"$CXX" -std=c++17 -O2 -Wall -Wextra \
-    -D_CRT_SECURE_NO_WARNINGS \
-    -D_WIN32_WINNT=0x0600 \
-    -I src \
+COMMON="-std=c++17 -O2 -Wall -Wextra -D_CRT_SECURE_NO_WARNINGS \
+        -D_WIN32_WINNT=0x0600 -I src $SYSINC"
+
+# 并行编译成 .o 再链接。
+# 一次性把所有 .cpp 交给 g++ 是单进程串行的，40 多个文件要好几分钟；
+# 分开编译可以用满多核，而且中途失败时能一眼看出是哪个文件。
+JOBS=$(nproc 2>/dev/null || echo 2)
+echo "   并行度: $JOBS"
+OBJS=""
+FAIL=0
+for f in $SRCS; do
+    o=".build-win/$(basename "$f" .cpp).o"
+    OBJS="$OBJS $o"
+done
+
+# 分批后台并行：每 JOBS 个一批，批内并发、批间等待。
+# 比 xargs -P 好排查 —— 出错时能看到具体是哪个文件的报错。
+n=0
+for f in $SRCS; do
+    o=".build-win/$(basename "$f" .cpp).o"
+    "$CXX" $COMMON -c "$f" -o "$o" 2>&1 | sed "s|^|   [$f] |" &
+    n=$((n + 1))
+    if [ $((n % JOBS)) -eq 0 ]; then wait; fi
+done
+wait
+
+# 校验：每个源文件都必须有对应的 .o，缺任一个就别往下链接
+MISSING=""
+for f in $SRCS; do
+    o=".build-win/$(basename "$f" .cpp).o"
+    [ -s "$o" ] || MISSING="$MISSING $f"
+done
+if [ -n "$MISSING" ]; then
+    echo "错误: 以下文件编译失败:$MISSING"
+    exit 1
+fi
+
+# -mwindows : GUI 子系统。不加的话链接器按控制台子系统处理，
+#             入口是 main()，双击出来先弹一个黑窗口 —— 而且中文会因为
+#             控制台代码页是 GBK(936) 变成乱码。
+# -municode : wWinMain 是宽字符入口，不加会报 undefined reference to WinMain
+# -static-* : 静态链接运行时，目标机器无需装 MinGW DLL
+echo "   链接"
+"$CXX" $COMMON \
     -o ".build-win/$NAME" \
-    $SRCS \
+    $OBJS \
+    -mwindows -municode \
     -static -static-libgcc -static-libstdc++ \
-    -lwinmm \
+    -lwinmm -lcomctl32 -lcomdlg32 -lgdi32 -luser32 \
     $ZLIB_FLAG
 
 echo "-- 精简符号 --"
