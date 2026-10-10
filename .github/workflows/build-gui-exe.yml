@@ -101,26 +101,39 @@ jobs:
           # --windowed：不要控制台黑窗口。
           # --add-data "gui;gui" ：Python 界面源码
           # --add-binary "xlengine.dll;." ：引擎（engine.py 会从 _MEIPASS 找它）
-          pyinstaller --noconfirm --clean --windowed --onedir ^
-            --name "xlengine" ^
-            --add-data "gui;gui" ^
-            --add-binary "xlengine.dll;." ^
-            --hidden-import "PySide6.QtCore" ^
-            --hidden-import "PySide6.QtGui" ^
-            --hidden-import "PySide6.QtWidgets" ^
-            --exclude-module "tkinter" ^
-            --exclude-module "matplotlib" ^
-            --exclude-module "numpy" ^
-            --exclude-module "PIL" ^
-            --exclude-module "PySide6.QtQml" ^
-            --exclude-module "PySide6.QtQuick" ^
-            --exclude-module "PySide6.Qt3DCore" ^
-            --exclude-module "PySide6.QtMultimedia" ^
-            --exclude-module "PySide6.QtWebEngineCore" ^
-            --exclude-module "PySide6.QtWebEngineWidgets" ^
-            --exclude-module "PySide6.QtCharts" ^
-            --exclude-module "PySide6.QtDataVisualization" ^
-            gui/app.py 2>&1 | tail -30
+          pyinstaller --noconfirm --clean --windowed --onedir \
+            --name "xlengine" \
+            --add-data "gui;gui" \
+            --add-binary "xlengine.dll;." \
+            --hidden-import "PySide6.QtCore" \
+            --hidden-import "PySide6.QtGui" \
+            --hidden-import "PySide6.QtWidgets" \
+            --exclude-module "tkinter" \
+            --exclude-module "matplotlib" \
+            --exclude-module "numpy" \
+            --exclude-module "PIL" \
+            --exclude-module "PySide6.QtQml" \
+            --exclude-module "PySide6.QtQuick" \
+            --exclude-module "PySide6.Qt3DCore" \
+            --exclude-module "PySide6.QtMultimedia" \
+            --exclude-module "PySide6.QtWebEngineCore" \
+            --exclude-module "PySide6.QtWebEngineWidgets" \
+            --exclude-module "PySide6.QtCharts" \
+            --exclude-module "PySide6.QtDataVisualization" \
+            gui/app.py > build-gui.log 2>&1 && tail -20 build-gui.log || { tail -40 build-gui.log; exit 1; }
+
+      # PyInstaller 的输出很长，失败时看不到结尾没法定位。
+      # 同样用推分支的办法把日志带出来（artifact 下载域名被拦）。
+      - name: 回传打包日志
+        if: failure()
+        run: |
+          git config user.name "ci-bot"
+          git config user.email "ci-bot@example.com"
+          mkdir -p ci-logs
+          cp build-gui.log ci-logs/build-gui.log 2>/dev/null || echo "见上方输出" > ci-logs/build-gui.log
+          git add -f ci-logs/build-gui.log
+          git commit -m "CI 日志: build-gui run ${{ github.run_id }}" || echo "无变化"
+          git push -f origin HEAD:ci-logs-gui || echo "推送失败"
 
       - name: 冒烟测试（能否启动并退出）
         shell: bash
