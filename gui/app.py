@@ -80,6 +80,17 @@ class MainWindow(QMainWindow):
         self.grid.statusMessage.connect(self._on_status)
         self.grid.modified.connect(self._on_modified)
 
+        # Excel / WPS 风格的交互增强：右键菜单、状态栏统计、字号、
+        # 查找替换、排序、合并与插入删除。
+        # 挂在这一步（信号连好之后），因为它会包装 _on_selection 补统计。
+        try:
+            from gui.excel_ui import install as _install_excel_ui
+            self.excel_ui = _install_excel_ui(self)
+        except Exception as e:
+            # 界面增强挂不上不该让整个程序起不来
+            self.excel_ui = None
+            print("Excel 风格增强未启用: %s" % e)
+
         self.setWindowTitle(APP_NAME)
         self.resize(1100, 700)
         self._new_workbook()
@@ -830,6 +841,17 @@ class MainWindow(QMainWindow):
 
 
 def main():
+    # --selftest: 不起窗口，跑完界面自检就退出。
+    # CI 上的 Windows runner 没有显示器，用这个在离屏模式下验证
+    # "DLL 找得到、引擎能加载、界面能构造" —— 打包后能不能跑，靠它兜底。
+    if "--selftest" in sys.argv:
+        import gui.selftest as _st
+
+        app = QApplication(sys.argv)
+        app.setApplicationName(APP_NAME)
+        # main() 自己会打印"通过 N 项，失败 M 项"，返回 0/1 退出码
+        return _st.main()
+
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
     w = MainWindow()

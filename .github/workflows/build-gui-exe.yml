@@ -1,0 +1,153 @@
+name: 打包 Windows 桌面版（完整界面）
+
+# 一个 job 在 Linux 上交叉编译引擎 DLL（mingw 在那边稳定），
+# 另一个 job 在 Windows 真机上用 PyInstaller 把 Python + PySide6 + DLL
+# 打成可执行程序。
+#
+# 为什么拆开：Windows runner 上装 mingw 不稳定（Chocolatey 源时常超时），
+# 而 Linux 上的 mingw 交叉编译在 build-exe.yml 里已验证多年稳定。
+# 各司其职，成功率最高。
+#
+# 产物体积大（PySide6 全量打包，约 100~200 MB），
+# 但换来的是"双击就是 Excel 那样的完整界面"，这是刻意的取舍。
+
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build-dll:
+    name: 交叉编译引擎 DLL
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 mingw-w64
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            mingw-w64 \
+            libz-mingw-w64-dev
+          x86_64-w64-mingw32-g++ --version
+
+      - name: 编译 xlengine.dll
+        run: |
+          chmod +x build_dll.sh
+          bash build_dll.sh > build-dll.log 2>&1 || { cat build-dll.log; exit 1; }
+          tail -5 build-dll.log
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xlengine-dll
+          path: dist/xlengine.dll
+          if-no-files-found: error
+
+  package:
+    name: 打包 Windows 可执行程序
+    needs: build-dll
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install PySide6==6.6.1 PyInstaller==6.3.0
+
+      - name: 取回引擎 DLL
+        uses: actions/download-artifact@v4
+        with:
+          name: xlengine-dll
+          path: .
+
+      - name: 检查 DLL
+        shell: bash
+        run: |
+          ls -la xlengine.dll
+          file xlengine.dll || true
+
+      - name: PyInstaller 打包
+        shell: bash
+        run: |
+          # --onedir 而不是 --onefile：
+          #   这个程序带 PySide6 全量运行时，--onefile 每次启动都要先把
+          #   上百 MB 解压到临时目录，开机那一下要等十几秒且容易误判成卡死。
+          # --windowed：不要控制台黑窗口。
+          # --add-data "gui;gui" ：Python 界面源码
+          # --add-binary "xlengine.dll;." ：引擎（engine.py 会从 _MEIPASS 找它）
+          pyinstaller --noconfirm --clean --windowed --onedir ^
+            --name "xlengine" ^
+            --add-data "gui;gui" ^
+            --add-binary "xlengine.dll;." ^
+            --hidden-import "PySide6.QtCore" ^
+            --hidden-import "PySide6.QtGui" ^
+            --hidden-import "PySide6.QtWidgets" ^
+            --exclude-module "tkinter" ^
+            --exclude-module "matplotlib" ^
+            --exclude-module "numpy" ^
+            --exclude-module "PIL" ^
+            --exclude-module "PySide6.QtQml" ^
+            --exclude-module "PySide6.QtQuick" ^
+            --exclude-module "PySide6.Qt3DCore" ^
+            --exclude-module "PySide6.QtMultimedia" ^
+            --exclude-module "PySide6.QtWebEngineCore" ^
+            --exclude-module "PySide6.QtWebEngineWidgets" ^
+            --exclude-module "PySide6.QtCharts" ^
+            --exclude-module "PySide6.QtDataVisualization" ^
+            gui/app.py 2>&1 | tail -30
+
+      - name: 冒烟测试（能否启动并退出）
+        shell: bash
+        run: |
+          ls -la dist/xlengine/xlengine.exe
+          # 用 Qt 的离屏平台插件启动自检，能在无显示环境里跑通，
+          # 也顺带验证 DLL 找得到、引擎能加载。
+          cd dist/xlengine
+          QT_QPA_PLATFORM=offscreen ./xlengine.exe --selftest 2>&1 | tail -20
+
+      - name: 打压缩包
+        shell: bash
+        run: |
+          cd dist
+          7z a -tzip ../xlengine-windows.zip xlengine -xr'!*.pyc' || \
+            powershell -Command "Compress-Archive -Path xlengine -DestinationPath ../xlengine-windows.zip"
+          ls -la ../xlengine-windows.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xlengine-windows
+          path: xlengine-windows.zip
+          if-no-files-found: error
+
+      - name: 打 tag 时发布到 Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: xlengine-windows.zip
+          generate_release_notes: true
+
+      - name: 把成品推回仓库
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          git config user.name "ci-bot"
+          git config user.email "ci-bot@example.com"
+          git fetch origin main
+          mkdir -p dist
+          mkdir -p /tmp/art
+          cp xlengine-windows.zip /tmp/art/ 2>/dev/null || true
+          rm -f dist/xlengine-windows.zip
+          git checkout -B main origin/main
+          mkdir -p dist
+          cp /tmp/art/xlengine-windows.zip dist/ 2>/dev/null || true
+          git add -f dist/xlengine-windows.zip
+          git commit -m "CI: 更新 Windows 桌面版 [skip ci]" || echo "无变化"
+          git push origin main || echo "推送失败"

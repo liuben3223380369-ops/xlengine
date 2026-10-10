@@ -23,6 +23,15 @@ def _find_lib():
         cands.insert(0, os.path.join(_HERE, "xlengine.dll"))
     elif sys.platform == "darwin":
         cands.insert(0, os.path.join(_HERE, "libxlengine.dylib"))
+
+    # PyInstaller 打包后，--add-binary 放进去的文件会被解到 _MEIPASS。
+    # 不处理的话打包出来的 EXE 一启动就报"找不到共享库"——
+    # 而这个路径在源码运行时根本不存在，所以只能在这里显式补。
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        cands.insert(0, os.path.join(meipass, "xlengine.dll"))
+        cands.insert(1, os.path.join(meipass, "libxlengine.so"))
+
     for c in cands:
         if os.path.exists(c):
             return c
