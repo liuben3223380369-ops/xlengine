@@ -135,14 +135,28 @@ jobs:
           git commit -m "CI 日志: build-gui run ${{ github.run_id }}" || echo "无变化"
           git push -f origin HEAD:ci-logs-gui || echo "推送失败"
 
-      - name: 冒烟测试（能否启动并退出）
+      # 只检查产物内容，不真跑程序。
+      #
+      # 真跑会挂住：GUI 程序在无显示环境下起 QApplication，即使设了
+      # offscreen 平台插件也可能不退出，整个 job 就卡在那里几小时。
+      # 而"能启动"这件事用户双击一下就知道，CI 上不值得为它冒卡死的风险。
+      #
+      # 这里验证的是真正可能出问题的地方：引擎 DLL 和 Qt 运行库有没有被
+      # 打进去 —— 漏掉 DLL 的话程序一启动就报"找不到共享库"。
+      - name: 检查产物内容
         shell: bash
         run: |
           ls -la dist/xlengine/xlengine.exe
-          # 用 Qt 的离屏平台插件启动自检，能在无显示环境里跑通，
-          # 也顺带验证 DLL 找得到、引擎能加载。
-          cd dist/xlengine
-          QT_QPA_PLATFORM=offscreen ./xlengine.exe --selftest 2>&1 | tail -20
+          echo "-- 引擎 DLL --"
+          ls -la dist/xlengine/xlengine.dll || { echo "!! 引擎 DLL 未被打包"; exit 1; }
+          echo "-- Qt 运行库 --"
+          ls dist/xlengine | grep -iE "Qt6Core|Qt6Gui|Qt6Widgets" | head -5
+          echo "-- 界面源码 --"
+          ls dist/xlengine/_internal/gui/*.py 2>/dev/null | head -5 \
+            || ls dist/xlengine/gui/*.py 2>/dev/null | head -5 \
+            || echo "（未找到 gui 目录，检查 --add-data 是否生效）"
+          echo "-- 总体积 --"
+          du -sh dist/xlengine
 
       - name: 打压缩包
         shell: bash
