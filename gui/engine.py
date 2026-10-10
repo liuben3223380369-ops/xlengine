@@ -121,6 +121,13 @@ _lib.xl_merge_info.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctyp
 _lib.xl_add_chart.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int,
                               ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
                               ctypes.c_char_p, ctypes.c_int, ctypes.c_int]
+_lib.xl_add_image.argtypes = [ctypes.c_void_p, ctypes.c_int,
+                             ctypes.c_int, ctypes.c_int,
+                             ctypes.c_int, ctypes.c_int,
+                             ctypes.c_char_p, ctypes.c_int,
+                             ctypes.c_char_p, ctypes.c_char_p]
+_lib.xl_add_image.restype = ctypes.c_int
+
 _lib.xl_func_count.argtypes = []
 _lib.xl_copy_range.argtypes = [ctypes.c_void_p, ctypes.c_int,
                                ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
@@ -664,6 +671,14 @@ class Workbook:
 
     def sheet_names(self):
         return [self.sheet_name(i) for i in range(self.sheet_count)]
+
+    def add_image(self, sheet_idx, c0, r0, c1, r1, data,
+                  ext="png", name="image"):
+        """把 PNG/JPEG 字节插入工作表。data 是 bytes。"""
+        # c_char_p 接 bytes 正好；不要传 str，ctypes 会报类型错
+        buf = ctypes.c_char_p(data)
+        return _lib.xl_add_image(self._p, sheet_idx, c0, r0, c1, r1,
+                                 buf, len(data), _e(ext), _e(name))
 
     def export_pdf_all(self, path, font_path="", landscape=False):
         """全部工作表导出到一个 PDF。返回导出的表数，-1 表示失败。"""

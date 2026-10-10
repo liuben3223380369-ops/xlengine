@@ -29,6 +29,11 @@ SELECT_BORDER = QColor("#1a73e8") # 选区边框
 CURSOR_BORDER = QColor("#1a73e8")
 FILL_HANDLE = QColor("#1a73e8")
 
+# 单元格默认前景/背景。做成可变 QColor 是为了主题切换能原地改。
+# 见 gui/theme.py 的说明。
+CELL_FG = QColor("#000000")
+CELL_BG = QColor("#ffffff")
+
 DEF_COL_W = 80
 DEF_ROW_H = 24
 HEADER_H = 24      # 列标栏高度
@@ -63,6 +68,27 @@ def parse_addr(text):
     if not c or not rest.isdigit():
         return None
     return (c - 1, int(rest) - 1)
+
+
+try:
+    from gui.sparkline import (
+        SparklineStore as _SparklineStore,
+        collect_values as _spark_values,
+        draw as _spark_draw,
+    )
+except Exception:  # 迷你图模块缺失不该让网格起不来
+    class _SparklineStore(object):
+        def has(self, *a):
+            return False
+
+        def get(self, *a):
+            return None
+
+    def _spark_values(*a):
+        return []
+
+    def _spark_draw(*a):
+        pass
 
 
 class GridView(QAbstractScrollArea):
@@ -116,6 +142,8 @@ class GridView(QAbstractScrollArea):
         self._update_scrollbars()
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self._context_menu)
+        # 迷你图。存在界面层（内存），不随 xlsx 存盘。
+        self.sparklines = _SparklineStore()
 
     # ------------------------------------------------------------------
     # 表 / 尺寸
@@ -370,6 +398,11 @@ class GridView(QAbstractScrollArea):
         p.setFont(self._font)
         vp = self.viewport().rect()
 
+        # 先把整个视口刷成单元格底色。
+        # 不做这一步的话，深色模式下没有填充色的格子会露出 viewport 的白底，
+        # 看起来就是"网格变黑了但格子还是白的"。
+        p.fillRect(vp, QBrush(CELL_BG))
+
         fw, fh = self.frozen_w(), self.frozen_h()
         fc, fr = self._frozen_cols, self._frozen_rows
         sc0, sr0, sc1, sr1 = self.sel_rect()
@@ -450,6 +483,18 @@ class GridView(QAbstractScrollArea):
             return
 
         in_sel = sc0 <= col <= sc1 and sr0 <= row <= sr1
+
+        # 迷你图：有就画图、不画文本（Excel 也是这个行为）
+        if self.sparklines.has(col, row):
+            if in_sel:
+                p.fillRect(rect, QBrush(SELECT_BG))
+            spec = self.sparklines.get(col, row)
+            vals = _spark_values(sh, spec)
+            if vals:
+                _spark_draw(p, rect, vals, spec.get("type", "line"),
+                            spec.get("color", "#4472c4"))
+            return
+
         text = sh.display(col, row)
         if not text:
             if in_sel:
@@ -475,7 +520,7 @@ class GridView(QAbstractScrollArea):
         if sty.get("font_color"):
             p.setPen(QPen(_qcolor(sty["font_color"])))
         else:
-            p.setPen(QPen(QColor("#000000")))
+            p.setPen(QPen(CELL_FG))
 
         # 对齐：数字靠右、文本靠左，与 Excel 默认一致
         vtype = sh.value_type(col, row)

@@ -26,6 +26,7 @@
 #include "dv.hpp"
 #include "note.hpp"
 #include "sheetpdf.hpp"
+#include "image.hpp"
 #include "style.hpp"
 #include "value.hpp"
 #include "functions.hpp"
@@ -941,6 +942,34 @@ char* xl_func_names(void) {
         joined += ns[i];
     }
     return dupStr(joined);
+}
+
+// ---- 插入图片 ----
+// data 是 PNG/JPEG 的原始字节。从文件读入的活儿交给调用方（Python 那边
+// 读文件更方便），桥接层只管把字节塞进引擎。
+int xl_add_image(void* wb, int sheet,
+                 int c0, int r0, int c1, int r1,
+                 const unsigned char* data, int len,
+                 const char* ext, const char* name) {
+    xl::Workbook* w = (xl::Workbook*)wb;
+    if (!w || sheet < 0 || sheet >= (int)w->sheetCount()) { g_lastError = "表索引越界"; return 1; }
+    if (!data || len <= 0) { g_lastError = "图片数据为空"; return 1; }
+
+    xl::ImagePart img;
+    img.fromCol = c0;
+    img.fromRow = r0;
+    img.toCol   = c1;
+    img.toRow   = r1;
+    img.data.assign(data, data + (size_t)len);
+    // 只认 png/jpg —— xlsx 的 ContentType 是按扩展名决定的，
+    // 传个别的值会写出一个 Excel 打不开的包
+    std::string e = ext ? ext : "png";
+    if (e != "png" && e != "jpg" && e != "jpeg") e = "png";
+    img.ext = e;
+    img.name = name ? name : "image";
+    w->addImage(sheet, img);
+    g_lastError.clear();
+    return 0;
 }
 
 }  // extern "C"

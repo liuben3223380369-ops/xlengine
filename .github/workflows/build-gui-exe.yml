@@ -78,7 +78,9 @@ jobs:
       - name: 安装依赖
         run: |
           python -m pip install --upgrade pip
-          pip install PySide6==6.6.1 PyInstaller==6.3.0
+          # segno: 二维码。纯 Python、零依赖、LGPL。
+          # 缺了它二维码功能会提示"未安装"，其余功能不受影响。
+          pip install PySide6==6.6.1 PyInstaller==6.3.0 segno==1.6.6
 
       - name: 取回引擎 DLL
         uses: actions/download-artifact@v4
@@ -108,6 +110,7 @@ jobs:
             --hidden-import "PySide6.QtCore" \
             --hidden-import "PySide6.QtGui" \
             --hidden-import "PySide6.QtWidgets" \
+            --hidden-import "segno" \
             --exclude-module "tkinter" \
             --exclude-module "matplotlib" \
             --exclude-module "numpy" \
