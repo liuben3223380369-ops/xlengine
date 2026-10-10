@@ -115,8 +115,9 @@ mkdir -p .build-win
 #   main.cpp  —— 命令行入口（控制台子系统用，GUI 不需要）
 #   tui.cpp   —— 终端 UI，依赖 termios / Windows Console API
 # 换成 winmain.cpp（wWinMain 入口）+ wingui.cpp（原生 Win32 界面，已被 ls 收录）。
+# 不要再手动追加 src/winmain.cpp —— 上面的 ls 已经收录它了，
+# 追加会让它被编译两次，链接时报 multiple definition of `wWinMain`。
 SRCS=$(ls src/*.cpp | grep -v 'src/main.cpp' | grep -v 'src/tui.cpp' | tr '\n' ' ')
-SRCS="$SRCS src/winmain.cpp"
 
 COMMON="-std=c++17 -O2 -Wall -Wextra -D_CRT_SECURE_NO_WARNINGS \
         -D_WIN32_WINNT=0x0600 -I src $SYSINC"

@@ -91,7 +91,6 @@ HWND g_grid = nullptr;      // 网格（自绘子窗口）
 HWND g_edit = nullptr;      // 就地编辑框
 HWND g_fx   = nullptr;      // 公式栏输入框
 HWND g_addr = nullptr;      // 地址框（静态文本）
-HWND g_tabs = nullptr;      // 底部表签（用按钮模拟）
 
 int g_curC = 0, g_curR = 0;
 int g_scrollX = 0, g_scrollY = 0;
@@ -113,12 +112,6 @@ xl::Sheet* cur() {
     if ((size_t)g_sheet >= w.sheetCount()) g_sheet = (int)w.sheetCount() - 1;
     if (g_sheet < 0) return nullptr;
     return &w.sheet((size_t)g_sheet);
-}
-
-// 单元格显示文本
-std::string cellText(int c, int r) {
-    xl::Sheet* s = cur();
-    return s ? s->display(c, r) : std::string();
 }
 
 // 单元格原文（公式带 =），用于回填编辑框
