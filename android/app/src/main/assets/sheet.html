@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>xlengine</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 14px; background: #fff; color: #222;
+  }
+  #app { display: flex; flex-direction: column; height: 100%; }
+
+  /* ---- 公式栏 ---- */
+  #bar {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 8px; border-bottom: 1px solid #d0d0d0; background: #f7f7f7;
+    flex: none;
+  }
+  #addr {
+    width: 62px; flex: none; text-align: center; font-weight: 600;
+    color: #1a73e8; background: #fff; border: 1px solid #ccc; border-radius: 4px;
+    padding: 5px 2px; font-size: 13px;
+  }
+  #fx { flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid #ccc;
+        border-radius: 4px; font-size: 14px; font-family: monospace; }
+  #bar button { flex: none; padding: 6px 10px; border: 1px solid #ccc;
+        border-radius: 4px; background: #fff; font-size: 13px; }
+
+  /* ---- 工具栏 ---- */
+  #tools {
+    display: flex; gap: 4px; padding: 4px 6px; border-bottom: 1px solid #e0e0e0;
+    background: #fafafa; overflow-x: auto; flex: none;
+  }
+  #tools button {
+    flex: none; padding: 5px 9px; border: 1px solid #ccc; border-radius: 4px;
+    background: #fff; font-size: 12px; white-space: nowrap;
+  }
+  #tools button:active { background: #e8f0fe; }
+
+  /* ---- 网格 ---- */
+  #scroll { flex: 1; overflow: auto; position: relative; -webkit-overflow-scrolling: touch; }
+  #spacer { position: relative; }
+  #cells  { position: absolute; top: 0; left: 0; }
+
+  .hdr { position: absolute; background: #f0f0f0; border-right: 1px solid #d8d8d8;
+         border-bottom: 1px solid #d8d8d8; font-size: 11px; color: #666;
+         display: flex; align-items: center; justify-content: center;
+         z-index: 2; overflow: hidden; }
+  .corner { position: absolute; top: 0; left: 0; background: #f0f0f0;
+            border-right: 1px solid #d8d8d8; border-bottom: 1px solid #d8d8d8; z-index: 3; }
+
+  .cell {
+    position: absolute; border-right: 1px solid #e8e8e8; border-bottom: 1px solid #e8e8e8;
+    padding: 0 4px; line-height: 31px; overflow: hidden; white-space: nowrap;
+    font-size: 13px; background: #fff;
+  }
+  .cell.sel { outline: 2px solid #1a73e8; outline-offset: -2px; z-index: 1; background: #eaf2fe; }
+
+  #edit {
+    position: absolute; display: none; z-index: 5;
+    border: 2px solid #1a73e8; padding: 0 3px; font-size: 13px;
+    font-family: monospace; line-height: 28px; background: #fff; outline: none;
+  }
+
+  /* ---- 底部表签 ---- */
+  #tabs {
+    display: flex; gap: 4px; padding: 4px 6px; border-top: 1px solid #d0d0d0;
+    background: #f7f7f7; overflow-x: auto; flex: none; align-items: center;
+  }
+  #tabs button {
+    flex: none; padding: 5px 12px; border: 1px solid #ccc; border-radius: 4px;
+    background: #fff; font-size: 13px;
+  }
+  #tabs button.on { background: #1a73e8; color: #fff; border-color: #1a73e8; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="bar">
+    <div id="addr">A1</div>
+    <input id="fx" placeholder="输入内容或 =公式">
+    <button onclick="commit()">✓</button>
+  </div>
+
+  <div id="tools">
+    <button onclick="doSave()">保存</button>
+    <button onclick="doNew()">新建</button>
+    <button onclick="doOpen()">打开…</button>
+    <button onclick="insRow()">插入行</button>
+    <button onclick="delRow()">删除行</button>
+    <button onclick="insCol()">插入列</button>
+    <button onclick="delCol()">删除列</button>
+    <button onclick="doSum()">求和</button>
+    <button onclick="addTab()">+ 表</button>
+  </div>
+
+  <div id="scroll">
+    <div id="spacer">
+      <div id="cells"></div>
+      <input id="edit">
+    </div>
+  </div>
+
+  <div id="tabs"></div>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// 虚拟化网格
+//
+// 只把"可见范围"的格子放进 DOM。表格有 1048576 行 × 16384 列，
+// 全画出来必然卡死；而滚动时可见的永远只有几十个格子。
+//
+// 计算全部在 C++ 引擎里，JS 只负责画和收输入 —— 界面层一行都不重复实现
+// 公式求值。
+// ---------------------------------------------------------------------------
+var COLW = 92, ROWH = 32, HD = 34;      // 列宽、行高、表头尺寸
+var MAXC = 200, MAXR = 2000;            // 可用范围（够用即可，不铺满 Excel 上限）
+
+var curC = 0, curR = 0;                 // 当前格（0-based）
+var cache = {};                         // "c,r" -> 显示值，避免每次滚动都跨 JNI
+
+var scroll = document.getElementById('scroll');
+var spacer = document.getElementById('spacer');
+var cells  = document.getElementById('cells');
+var edit   = document.getElementById('edit');
+var fx     = document.getElementById('fx');
+var addrEl = document.getElementById('addr');
+
+function colName(c) {
+  var s = '';
+  c++;
+  while (c > 0) {
+    var m = (c - 1) % 26;
+    s = String.fromCharCode(65 + m) + s;
+    c = Math.floor((c - 1) / 26);
+  }
+  return s;
+}
+function addr(c, r) { return colName(c) + (r + 1); }
+
+// ---- 绘制 ----
+function range() {
+  var vw = scroll.clientWidth, vh = scroll.clientHeight;
+  var c0 = Math.max(0, Math.floor(scroll.scrollLeft / COLW));
+  var r0 = Math.max(0, Math.floor(scroll.scrollTop / ROWH));
+  var c1 = Math.min(MAXC - 1, c0 + Math.ceil(vw / COLW) + 1);
+  var r1 = Math.min(MAXR - 1, r0 + Math.ceil(vh / ROWH) + 1);
+  return [c0, r0, c1, r1];
+}
+
+function draw() {
+  var rg = range(), c0 = rg[0], r0 = rg[1], c1 = rg[2], r1 = rg[3];
+
+  // 一次取回整个可见区域。逐格调用在手机上会掉帧 ——
+  // 一次 JNI 调用几十微秒，50 个可见格子滚动时就是肉眼可见的卡顿。
+  var data = [];
+  try {
+    data = JSON.parse(Android.grid(c0, r0, c1, r1));
+  } catch (e) {
+    data = [];
+  }
+  cache = {};
+
+  // 偏移：表头占掉左上角一块，格子从它右下开始
+  var ox = HD + c0 * COLW - scroll.scrollLeft;
+  var oy = HD + r0 * ROWH - scroll.scrollTop;
+
+  var html = '';
+  // 左上角
+  html += '<div class="corner" style="width:' + HD + 'px;height:' + HD + 'px;left:0;top:0"></div>';
+  // 列标
+  for (var c = c0; c <= c1; c++) {
+    html += '<div class="hdr" style="left:' + (HD + c * COLW - scroll.scrollLeft) +
+            'px;top:0;width:' + COLW + 'px;height:' + HD + 'px">' + colName(c) + '</div>';
+  }
+  // 行号
+  for (var r = r0; r <= r1; r++) {
+    html += '<div class="hdr" style="left:0;top:' + (HD + r * ROWH - scroll.scrollTop) +
+            'px;width:' + HD + 'px;height:' + ROWH + 'px">' + (r + 1) + '</div>';
+  }
+  // 格子
+  for (var rr = r0; rr <= r1; rr++) {
+    for (var cc = c0; cc <= c1; cc++) {
+      var v = (data[rr - r0] && data[rr - r0][cc - c0] !== undefined) ? data[rr - r0][cc - c0] : '';
+      cache[cc + ',' + rr] = v;
+      var sel = (cc === curC && rr === curR) ? ' sel' : '';
+      html += '<div class="cell' + sel + '" data-c="' + cc + '" data-r="' + rr + '"' +
+              ' style="left:' + (ox + (cc - c0) * COLW) + 'px;top:' + (oy + (rr - r0) * ROWH) +
+              'px;width:' + COLW + 'px;height:' + ROWH + 'px">' + esc(v) + '</div>';
+    }
+  }
+  cells.innerHTML = html;
+  addrEl.textContent = addr(curC, curR);
+}
+
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ---- 选中与编辑 ----
+function select(c, r) {
+  curC = c; curR = r;
+  var raw = '';
+  try { raw = Android.cellRaw(c, r); } catch (e) {}
+  fx.value = raw;
+  addrEl.textContent = addr(c, r);
+  var old = cells.querySelector('.cell.sel');
+  if (old) old.classList.remove('sel');
+  var el = cells.querySelector('.cell[data-c="' + c + '"][data-r="' + r + '"]');
+  if (el) el.classList.add('sel');
+}
+
+cells.addEventListener('click', function (e) {
+  var t = e.target.closest ? e.target.closest('.cell') : null;
+  if (!t) return;
+  select(+t.getAttribute('data-c'), +t.getAttribute('data-r'));
+});
+
+// 双击就地编辑
+cells.addEventListener('dblclick', function (e) {
+  var t = e.target.closest ? e.target.closest('.cell') : null;
+  if (!t) return;
+  var c = +t.getAttribute('data-c'), r = +t.getAttribute('data-r');
+  select(c, r);
+  openEdit(c, r);
+});
+
+function openEdit(c, r) {
+  var el = cells.querySelector('.cell[data-c="' + c + '"][data-r="' + r + '"]');
+  if (!el) return;
+  edit.style.display = 'block';
+  edit.style.left = el.style.left;
+  edit.style.top = el.style.top;
+  edit.style.width = (COLW - 2) + 'px';
+  edit.style.height = (ROWH - 2) + 'px';
+  try { edit.value = Android.cellRaw(c, r); } catch (err) { edit.value = ''; }
+  edit.focus();
+}
+
+edit.addEventListener('blur', function () {
+  if (edit.style.display === 'block') {
+    Android.setCell(curC, curR, edit.value);
+    edit.style.display = 'none';
+    draw(); select(curC, curR);
+  }
+});
+edit.addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') { edit.blur(); move(0, 1); }
+});
+
+// 公式栏提交
+function commit() {
+  Android.setCell(curC, curR, fx.value);
+  draw(); select(curC, curR);
+}
+fx.addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') { commit(); move(0, 1); }
+});
+
+function move(dc, dr) {
+  curC = Math.max(0, Math.min(MAXC - 1, curC + dc));
+  curR = Math.max(0, Math.min(MAXR - 1, curR + dr));
+  ensureVisible();
+  draw(); select(curC, curR);
+}
+
+function ensureVisible() {
+  var x = HD + curC * COLW, y = HD + curR * ROWH;
+  if (x < scroll.scrollLeft + HD) scroll.scrollLeft = x - HD;
+  if (x + COLW > scroll.scrollLeft + scroll.clientWidth) scroll.scrollLeft = x + COLW - scroll.clientWidth;
+  if (y < scroll.scrollTop + HD) scroll.scrollTop = y - HD;
+  if (y + ROWH > scroll.scrollTop + scroll.clientHeight) scroll.scrollTop = y + ROWH - scroll.clientHeight;
+}
+
+// 滚动时只重画，不重新取工作表元数据
+var ticking = false;
+scroll.addEventListener('scroll', function () {
+  if (ticking) return;
+  ticking = true;
+  requestAnimationFrame(function () { draw(); ticking = false; });
+});
+
+// ---- 工具栏 ----
+function doSave() { Android.save(); }
+function doNew()  { Android.doNew(); reload(); }
+function doOpen() { Android.openFilePicker(); }
+function insRow() { Android.insertRows(curR, 1); reload(); }
+function delRow() { Android.deleteRows(curR, 1); reload(); }
+function insCol() { Android.insertCols(curC, 1); reload(); }
+function delCol() { Android.deleteCols(curC, 1); reload(); }
+
+// 在当前格下方对上方连续数字求和
+function doSum() {
+  var s = 0, n = 0;
+  for (var r = curR - 1; r >= 0; r--) {
+    var v = cache[curC + ',' + r];
+    if (v === undefined) { try { v = Android.cellText(curC, r); } catch (e) { v = ''; } }
+    var num = parseFloat(v);
+    if (v !== '' && !isNaN(num)) { s += num; n++; } else break;
+  }
+  if (n === 0) { fx.value = '=SUM(' + colName(curC) + (curR + 1) + ':' + colName(curC) + (curR + 1) + ')'; return; }
+  fx.value = '=SUM(' + colName(curC) + (curR - n + 1) + ':' + colName(curC) + curR + ')';
+  commit();
+}
+
+// ---- 表签 ----
+function drawTabs() {
+  var n = 0;
+  try { n = Android.sheetCount(); } catch (e) {}
+  var html = '';
+  for (var i = 0; i < n; i++) {
+    var nm = '';
+    try { nm = Android.sheetName(i); } catch (e) {}
+    html += '<button class="' + (i === curSheet ? 'on' : '') + '" onclick="goSheet(' + i + ')">' +
+            esc(nm) + '</button>';
+  }
+  document.getElementById('tabs').innerHTML = html;
+}
+var curSheet = 0;
+function goSheet(i) {
+  curSheet = i;
+  Android.setSheet(i);
+  scroll.scrollTop = 0; scroll.scrollLeft = 0;
+  curC = 0; curR = 0;
+  reload();
+}
+function addTab() {
+  curSheet = Android.addSheet('Sheet' + (Android.sheetCount() + 1));
+  reload();
+}
+
+function reload() {
+  spacer.style.width  = (HD + MAXC * COLW) + 'px';
+  spacer.style.height = (HD + MAXR * ROWH) + 'px';
+  cache = {};
+  draw(); drawTabs(); select(curC, curR);
+}
+
+// Java 在打开文件或新建之后回调这里
+window.onOpened = function () {
+  curSheet = 0; curC = 0; curR = 0;
+  scroll.scrollTop = 0; scroll.scrollLeft = 0;
+  reload();
+};
+
+window.onload = reload;
+</script>
+</body>
+</html>

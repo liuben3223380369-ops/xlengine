@@ -10,7 +10,7 @@ DEPS     := $(OBJS:.o=.d)
 TARGET   := xl
 
 TEST_SRC := tests/test_new.cpp tests/test_new2.cpp tests/test_xlsx.cpp tests/test_chartxlsx.cpp tests/test_fill.cpp tests/test_pdf.cpp tests/test_tui.cpp tests/test_refshift.cpp tests/test_numfmt.cpp tests/test_style.cpp tests/test_smoke.cpp tests/test_cf.cpp tests/test_dv.cpp tests/test_note.cpp tests/test_shared.cpp tests/test_view.cpp tests/test_image.cpp tests/test_definedname.cpp tests/test_depgraph.cpp tests/test_edit.cpp tests/test_robust.cpp tests/test_stress.cpp tests/bench.cpp tools/chartdemo.cpp tools/numfmtdemo.cpp tools/styledemo.cpp tools/cfdemo.cpp tools/dvdemo.cpp tools/notedemo.cpp tools/viewdemo.cpp tools/imagedemo.cpp tools/dndemo.cpp
-TEST_BIN := tests/xltest tests/xltest2 tests/xlsxlt tests/chartt tests/fillt tests/pdft tests/tuit tests/refshiftt tests/numfmtt tests/stylet tests/cft tests/dvt tests/notet tests/sharedt tests/viewt tests/imgt tests/dnt tests/dept tests/editt tests/auditt tests/smoket tests/robustt tests/stresst tests/xlbench tools/chartdemo tools/xlsxdemo
+TEST_BIN := tests/xltest tests/xltest2 tests/xlsxlt tests/chartt tests/fillt tests/pdft tests/tuit tests/refshiftt tests/numfmtt tests/stylet tests/cft tests/dvt tests/notet tests/sharedt tests/viewt tests/imgt tests/dnt tests/dept tests/editt tests/auditt tests/jnitest tests/smoket tests/robustt tests/stresst tests/xlbench tools/chartdemo tools/xlsxdemo
 
 all: $(TARGET)
 
@@ -68,6 +68,13 @@ $(TARGET): $(OBJS)
 
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) $(DEPFLAGS) -c $< -o $@
+
+# JNI 桥接的桌面验证。
+# 桩头文件在 tests/jni_stub/jni.h（jstring 就是 std::string），
+# 这样 Android 端的桥接逻辑能在桌面上真跑一遍 —— APK 只能在 CI 编，
+# 本地跑不了真机，光靠语法检查拦不住"数字被当文本存"这类逻辑错误。
+tests/jnitest: tests/test_jni.cpp android/app/src/main/cpp/jni_bridge.cpp $(filter-out src/main.o,$(OBJS))
+	$(CXX) $(CXXFLAGS) -I tests/jni_stub -o $@ tests/test_jni.cpp android/app/src/main/cpp/jni_bridge.cpp $(filter-out src/main.o,$(OBJS)) -lz
 
 tests/xltest: tests/test_new.cpp $(filter-out src/main.o,$(OBJS))
 	$(CXX) $(CXXFLAGS) -o $@ tests/test_new.cpp $(filter-out src/main.o,$(OBJS)) -lz
@@ -176,6 +183,7 @@ test: $(TARGET) tests/xltest tests/xltest2 tests/xlsxlt tests/chartt tests/fillt
 	sh tools/runtest.sh ./tests/editt
 	@echo ""
 	sh tools/runtest.sh ./tests/auditt
+	sh tools/runtest.sh ./tests/jnitest
 	sh tools/runtest.sh ./tests/robustt
 	sh tools/runtest.sh ./tests/stresst
 	sh tools/runtest.sh ./tests/stylet
