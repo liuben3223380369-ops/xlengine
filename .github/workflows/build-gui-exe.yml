@@ -33,10 +33,22 @@ jobs:
           x86_64-w64-mingw32-g++ --version
 
       - name: 编译 xlengine.dll
+        id: makedll
         run: |
           chmod +x build_dll.sh
-          bash build_dll.sh > build-dll.log 2>&1 || { cat build-dll.log; exit 1; }
+          bash build_dll.sh > build-dll.log 2>&1 && echo "OK" || { echo "失败"; cat build-dll.log; }
           tail -5 build-dll.log
+          ls -la dist/xlengine.dll 2>/dev/null || exit 1
+
+      # CI 的运行日志在外部取不到（结果域名被拦），失败时把日志当 artifact
+      # 传出来，才能知道到底是哪一步挂了。
+      - name: 上传编译日志
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-dll-log
+          path: build-dll.log
+          if-no-files-found: ignore
 
       - uses: actions/upload-artifact@v4
         with:
