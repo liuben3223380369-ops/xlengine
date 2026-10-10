@@ -1,0 +1,17 @@
+From https://github.com/liuben3223380369-ops/xlengine
+ * branch            main       -> FETCH_HEAD
+Reset branch 'main'
+D	dist/xlengine.exe
+branch 'main' set up to track 'origin/main'.
+Your branch is up to date with 'origin/main'.
+total 60640
+drwxr-xr-x  2 runner runner     4096 Oct 10 12:52 .
+drwxr-xr-x 10 runner runner     4096 Oct 10 12:52 ..
+-rw-r--r--  1 runner runner     1196 Oct 10 12:51 README.md
+-rwxr-xr-x  1 runner runner 44450360 Oct 10 12:51 xlengine-windows.zip
+-rwxr-xr-x  1 runner runner 14560180 Oct 10 12:51 xlengine.apk
+-rwxr-xr-x  1 runner runner  3115008 Oct 10 12:52 xlengine.exe
+[main e0307fa] CI: 更新 Windows EXE [skip ci]
+ 1 file changed, 0 insertions(+), 0 deletions(-)
+To https://github.com/liuben3223380369-ops/xlengine
+   e9a4b43..e0307fa  main -> main
