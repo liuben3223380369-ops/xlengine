@@ -21,6 +21,9 @@ jobs:
   build-dll:
     name: 交叉编译引擎 DLL
     runs-on: ubuntu-latest
+    # 失败时要 git push 日志分支，没有它 GITHUB_TOKEN 只有读权限
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 

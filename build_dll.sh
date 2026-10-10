@@ -63,8 +63,16 @@ SYSINC=""
 
 # ---- 编译 ----
 mkdir -p .build-dll
-# 排除 main.cpp（命令行入口）与 tui.cpp（终端 UI，DLL 用不到）
-SRCS=$(ls src/*.cpp | grep -v 'src/main.cpp' | grep -v 'src/tui.cpp' | tr '\n' ' ')
+# 排除四个文件 —— 少排除任何一个都会在链接期报 undefined reference：
+#   main.cpp    : 命令行入口（控制台子系统用）
+#   tui.cpp     : 终端 UI（依赖 termios / Windows Console API）
+#   wingui.cpp  : 原生 Win32 界面，**EXE 专用**。它调 CreateWindowExW 等，
+#                 编进 DLL 但不链 -lgdi32/-luser32 就会链接失败
+#   winmain.cpp : wWinMain 入口，与 DLL 无关（重复还会 multiple definition）
+SRCS=$(ls src/*.cpp \
+        | grep -v -e 'src/main.cpp' -e 'src/tui.cpp' \
+              -e 'src/wingui.cpp' -e 'src/winmain.cpp' \
+        | tr '\n' ' ')
 
 COMMON="-std=c++17 -O2 -Wall -Wextra -D_CRT_SECURE_NO_WARNINGS \
         -D_WIN32_WINNT=0x0600 -I src $SYSINC -fPIC"
@@ -96,7 +104,7 @@ OBJS=$(ls .build-dll/*.o | tr '\n' ' ')
     -Wl,--out-implib,.build-dll/libxlengine.a \
     $OBJS \
     -static -static-libgcc -static-libstdc++ \
-    -lwinmm $ZLIB_FLAG
+    -lwinmm -lgdi32 -luser32 $ZLIB_FLAG
 
 mkdir -p "$DIST"
 mv ".build-dll/$NAME" "$DIST/$NAME"
