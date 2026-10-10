@@ -198,8 +198,15 @@ bool sheetToPdf(Sheet& sh, const std::string& outPath,
             err = "字体嵌入失败: " + e2;
             return false;
         }
+        if (!opt.fallbackFontPath.empty()) {
+            std::string e3;
+            // 备用字体嵌入失败不该让整个导出失败，降级为"数字可能缺失"
+            if (!w.embedFallback(opt.fallbackFontPath, e3)) font = font;
+        }
     }
     if (!renderSheetToWriter(sh, w, opt, font, err)) return false;
+    // 所有页面都画完之后才盖页码 —— 总页数这时才知道
+    if (opt.pageNumbers) w.stampPageNumbers(font.empty() ? "F1" : font, 8, !font.empty());
     return w.save(outPath, err);
 }
 
@@ -226,6 +233,10 @@ bool workbookToPdf(Workbook& wb, const std::string& outPath,
             err = "字体嵌入失败: " + e2;
             return false;
         }
+        if (!opt.fallbackFontPath.empty()) {
+            std::string e3;
+            if (!w.embedFallback(opt.fallbackFontPath, e3)) { /* 降级，不 fatal */ }
+        }
     }
 
     std::vector<std::string> names = wb.sheetNames();
@@ -249,6 +260,8 @@ bool workbookToPdf(Workbook& wb, const std::string& outPath,
         done++;
     }
     if (done == 0) { err = "所有工作表都是空的"; return false; }
+    // 多表时页码跨表连续编号，正好让人知道"这是全部 5 张表里的第 3 页"
+    if (opt.pageNumbers) w.stampPageNumbers(font.empty() ? "F1" : font, 8, !font.empty());
     if (outSheets) *outSheets = done;
     return w.save(outPath, err);
 }

@@ -273,6 +273,41 @@ def test_bridge():
     check("chart 删除", sg.remove_chart(0))
     check("chart 删后 0", sg.chart_count() == 0, sg.chart_count())
 
+    # ---- PDF：数字不能丢 ----
+    #
+    # 中文字体常常不含 ASCII 数字（DroidSansFallbackFull.ttf 实测没有 0-9）。
+    # 只嵌一个字体的话，PDF 里所有数字会变成 .notdef —— 不报错、不崩溃，
+    # 就是数字整片消失。所以必须有字体回退，并且要用 pdftotext 抽出来验证。
+    #
+    wbp = engine.Workbook()
+    sp = wbp.sheet(0)
+    sp.set_str(0, 0, "项目")
+    # 数字用短的：列宽有上限，5 位数字会被压成 "123..."，
+    # 那是列宽截断不是丢数字，混进来会让这条断言测不到真正要测的东西。
+    sp.set_num(1, 0, 42)
+    sp.set_str(0, 1, "数量")
+    sp.set_num(1, 1, 7)
+    wbp.recalc()
+    _pdf = "/tmp/selftest_pdf.pdf"
+    if _os.path.exists(_pdf):
+        _os.remove(_pdf)
+    ok_pdf = sp.export_pdf(_pdf)
+    check("PDF 导出成功", ok_pdf, wbp.last_error)
+    if ok_pdf and _os.path.exists(_pdf):
+        check("PDF 头正确", open(_pdf, "rb").read(5) == b"%PDF-")
+        _txt = ""
+        try:
+            import subprocess
+            _r = subprocess.run(["pdftotext", _pdf, "-"],
+                                capture_output=True, text=True)
+            _txt = _r.stdout
+        except FileNotFoundError:
+            print("  （跳过文本抽取验证：未装 pdftotext）")
+        if _txt:
+            check("PDF 里数字没丢", "42" in _txt and "7" in _txt,
+                  repr(_txt[:80]))
+            check("PDF 里中文没丢", "项目" in _txt, repr(_txt[:60]))
+
     # 存盘再读回
     path = "/tmp/gui_selftest.xlsx"
     if os.path.exists(path):

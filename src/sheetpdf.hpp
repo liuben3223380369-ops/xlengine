@@ -17,6 +17,7 @@ class Workbook;   // 前向声明，避免 sheetpdf.hpp 反向依赖 xlsx.hpp
 
 struct SheetPdfOptions {
     bool landscape = false;          // 横向（默认纵向）
+    bool pageNumbers = false;        // 每页底部加盖"第 N 页 / 共 M 页"
     bool gridLines = true;
     bool showHeaders = true;         // 显示 A/B/C 与 1/2/3 表头
     bool repeatHeaderRow = true;     // 每页重复首行
@@ -26,6 +27,7 @@ struct SheetPdfOptions {
     double maxColWidth = 160;
     double rowHeight = 16;
     std::string fontPath;            // 为空则用内置回退（ASCII 点阵，中文会缺）
+    std::string fallbackFontPath;    // 主字体缺字形时用它补（常见：中文字体缺数字）
     std::string title;
 };
 

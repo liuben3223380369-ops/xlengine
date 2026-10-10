@@ -484,21 +484,68 @@ int xl_fill(void* wb, int sheet, int srcC0, int srcR0, int srcC1, int srcR1,
 }
 
 // 全部工作表导出到一个 PDF。返回导出的表数（<0 失败）
+
+// ---------------------------------------------------------------------------
+// PDF 字体选择
+//
+// 关键：**中文字体常常不含 ASCII 数字**。实测 DroidSansFallbackFull.ttf
+// 就没有 0-9 的字形。只嵌一个字体的话，PDF 里所有数字会变成 .notdef ——
+// 不报错、不崩溃，就是数字整片消失。
+//
+// 所以分两次挑：先挑能显示中文的当主字体，再挑能显示数字的当备用。
+// ---------------------------------------------------------------------------
+static bool fontHasAll(const std::string& path, const std::string& chars) {
+    xl::TtfFont f;
+    std::string e;
+    if (!f.load(path, e)) return false;
+    //
+    // 必须按**码点**遍历，不能逐字节。
+    // "中" 的 UTF-8 是 E4 B8 AD 三个字节，按字节查 cmap 等于在查
+    // U+00E4/U+00B8/U+00AD 这三个码点 —— 字体里当然没有，
+    // 于是"这个字体不含中文"的判定恒为真，中文字体一个都选不上。
+    //
+    for (uint32_t cp : xl::TtfFont::decodeUtf8(chars))
+        if (f.glyphFor(cp) == 0) return false;
+    return true;
+}
+
+// 返回 true 时 fp = 主字体（含中文），fb = 备用字体（含数字，可为空）
+static void pickPdfFonts(std::string& fp, std::string& fb) {
+    static const char* cjkCand[] = {
+        "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+        "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    };
+    static const char* latinCand[] = {
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "/usr/share/fonts/truetype/droid/DroidSans.ttf",
+    };
+    fp.clear(); fb.clear();
+    for (auto c : cjkCand) {
+        if (fontHasAll(c, "\xE4\xB8\xAD")) { fp = c; break; }     // 含"中"
+    }
+    if (fp.empty()) return;
+    // 主字体自己就有数字的话不用备用
+    if (fontHasAll(fp, "0123456789")) return;
+    for (auto c : latinCand) {
+        if (fontHasAll(c, "0123456789")) { fb = c; break; }
+    }
+}
+
 int xl_export_pdf_all(void* wb, const char* path, const char* fontPath, int landscape) {
     xl::Workbook* w = (xl::Workbook*)wb;
     if (!w) { g_lastError = "工作簿为空"; return -1; }
-    std::string fp = fontPath ? fontPath : "";
-    if (fp.empty()) {
-        const char* cand[] = {
-            "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-        };
-        for (auto c : cand) { std::ifstream t(c); if (t) { fp = c; break; } }
-    }
+    std::string fp, fb;
+    if (fontPath && *fontPath) fp = fontPath;
+    else pickPdfFonts(fp, fb);
     xl::SheetPdfOptions o;
     o.landscape = landscape != 0;
+    o.pageNumbers = true;
     o.fontPath = fp;
+    o.fallbackFontPath = fb;
     int done = 0;
     std::string err;
     if (!xl::workbookToPdf(*w, path ? path : "", o, err, &done)) {
@@ -834,19 +881,14 @@ int xl_export_pdf(void* wb, int sheet, const char* path,
 
     xl::SheetPdfOptions o;
     o.landscape = landscape != 0;
+    o.pageNumbers = true;          // 多页时才知道看到的是第几页，默认开
     o.title = (sheet < (int)w->sheetNames().size()) ? w->sheetNames()[(size_t)sheet]
                                                          : ("Sheet" + std::to_string(sheet + 1));
-    std::string fp = fontPath ? fontPath : "";
-    if (fp.empty()) {
-        // 没指定就找常见中文字体；找不到就退化（中文会缺字，但不失败）
-        const char* cand[] = {
-            "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-        };
-        for (auto c : cand) { std::ifstream t(c); if (t) { fp = c; break; } }
-    }
+    std::string fp, fb;
+    if (fontPath && *fontPath) fp = fontPath;
+    else pickPdfFonts(fp, fb);
     o.fontPath = fp;
+    o.fallbackFontPath = fb;
     std::string err;
     if (!xl::sheetToPdf(sh, path ? path : "", o, err)) {
         g_lastError = err.empty() ? "导出失败" : err;

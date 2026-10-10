@@ -45,6 +45,13 @@ public:
     // 嵌入字体，返回资源名（F1 / F2 ...）
     bool embedFont(const std::string& ttfPath, std::string& resName, std::string& err);
 
+    // 嵌入"备用字体"：主字体缺字形时用它补。
+    //
+    // 必须有的原因：中文字体常常不含 ASCII 数字（实测 DroidSansFallbackFull.ttf
+    // 就没有 0-9 的字形）。只嵌一个字体的话，PDF 里所有数字会变成 .notdef ——
+    // 不报错、不崩溃，就是数字整片消失，只有拿 pdftotext 抽一遍才发现。
+    bool embedFallback(const std::string& ttfPath, std::string& err);
+
     // ---- 绘制（作用于当前页）----
     void newPage();
     // 文本：以左上角为起点（屏幕习惯），内部转成 PDF 坐标
@@ -68,6 +75,15 @@ public:
     void pieWedge(double cx, double cy, double r, double a0, double a1,
                   PdfColor fill, PdfColor stroke, double lw = 0.7);
     void clipRect(double x, double y, double w, double h);
+
+    // 给每页底部加盖"第 N 页 / 共 M 页"。
+    //
+    // 必须在 save() 之前调用，且只应在所有页面都画完之后调一次：
+    // 总页数只有到最后才知道，边画边盖的话第一页写不出"共几页"。
+    //
+    // cjk=false 时只写 "N / M" —— 未嵌中文字体的 PDF 里写中文会变成乱码，
+    // 所以能不能用中文取决于调用方有没有成功嵌入字体。
+    void stampPageNumbers(const std::string& font, double size, bool cjk);
 
     bool save(const std::string& path, std::string& err);
 
@@ -105,6 +121,7 @@ private:
     std::vector<FontImpl> fonts_;
     std::vector<std::vector<Op>> pages_;
     std::vector<Op> cur_;
+    std::string fallback_;          // 备用字体资源名（空 = 没有备用）
     double pw_ = 595.28, ph_ = 841.89;
     double mg_ = 24;
     std::string title_;

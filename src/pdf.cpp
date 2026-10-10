@@ -119,16 +119,77 @@ void PdfWriter::newPage() {
     cur_.clear();
 }
 
+namespace {
+void appendUtf8(std::string& out, uint32_t cp) {
+    if (cp < 0x80) {
+        out += (char)cp;
+    } else if (cp < 0x800) {
+        out += (char)(0xC0 | (cp >> 6));
+        out += (char)(0x80 | (cp & 0x3F));
+    } else if (cp < 0x10000) {
+        out += (char)(0xE0 | (cp >> 12));
+        out += (char)(0x80 | ((cp >> 6) & 0x3F));
+        out += (char)(0x80 | (cp & 0x3F));
+    } else {
+        out += (char)(0xF0 | (cp >> 18));
+        out += (char)(0x80 | ((cp >> 12) & 0x3F));
+        out += (char)(0x80 | ((cp >> 6) & 0x3F));
+        out += (char)(0x80 | (cp & 0x3F));
+    }
+}
+}
+
 void PdfWriter::text(double xLeft, double yTop, const std::string& s, double size,
                      const std::string& font, PdfColor c) {
-    Op o;
-    o.kind = OpKind::Text;
-    o.s = s; o.font = font; o.size = size;
-    // 转成 PDF 坐标：基线位置 = 翻转换算后的 y 减去字号
-    o.x = xLeft;
-    o.y = flipY(yTop) - size;
-    o.fill = c;
-    cur_.push_back(std::move(o));
+    const FontImpl* f = fontByName(font);
+    const FontImpl* fb = fallback_.empty() ? nullptr : fontByName(fallback_);
+    // 没有备用字体（或压根没嵌字体）时保持原行为：整串一个 Op
+    if (!f || !fb) {
+        Op o;
+        o.kind = OpKind::Text;
+        o.s = s; o.font = font; o.size = size;
+        o.x = xLeft;
+        o.y = flipY(yTop) - size;
+        o.fill = c;
+        cur_.push_back(std::move(o));
+        return;
+    }
+
+    // 逐码点判断主字体有没有这个字形，缺的切到备用字体。
+    // 连续同字体的字符合成一段，避免"一个字一个 Op"把内容流撑爆。
+    auto emit = [&](const std::string& seg, const std::string& fn, double x) {
+        if (seg.empty()) return;
+        Op o;
+        o.kind = OpKind::Text;
+        o.s = seg; o.font = fn; o.size = size;
+        o.x = x;
+        o.y = flipY(yTop) - size;
+        o.fill = c;
+        cur_.push_back(std::move(o));
+    };
+
+    std::string seg;
+    std::string curFont = font;
+    double x = xLeft;
+    auto flush = [&]() {
+        if (seg.empty()) return;
+        emit(seg, curFont, x);
+        x += textWidth(seg, size, curFont);
+        seg.clear();
+    };
+    for (uint32_t cp : TtfFont::decodeUtf8(s)) {
+        std::string want = (f->tf->glyphFor(cp) != 0) ? font : fallback_;
+        if (want != curFont) { flush(); curFont = want; }
+        appendUtf8(seg, cp);
+    }
+    flush();
+}
+
+bool PdfWriter::embedFallback(const std::string& ttfPath, std::string& err) {
+    std::string res;
+    if (!embedFont(ttfPath, res, err)) return false;
+    fallback_ = res;
+    return true;
 }
 
 void PdfWriter::line(double x0, double y0, double x1, double y1, PdfColor c, double lw) {
@@ -319,6 +380,30 @@ int PdfWriter::pageCount() const {
 // ---------------------------------------------------------------------------
 // 落盘
 // ---------------------------------------------------------------------------
+void PdfWriter::stampPageNumbers(const std::string& font, double size, bool cjk) {
+    int total = pageCount();
+    if (total <= 1) return;      // 单页不盖 —— 一页的文档写"第1页/共1页"只会添乱
+
+    auto label = [&](int n) {
+        if (!cjk) return std::to_string(n) + " / " + std::to_string(total);
+        return "第 " + std::to_string(n) + " 页 / 共 " + std::to_string(total) + " 页";
+    };
+    auto stamp = [&](std::vector<Op>& page, int n) {
+        std::string s = label(n);
+        Op o;
+        o.kind = OpKind::Text;
+        o.s = s;
+        o.font = font;
+        o.size = size;
+        o.x = (pw_ - textWidth(s, size, font)) / 2.0;   // 居中
+        o.y = 20;                                        // 基线距底边 20pt
+        o.fill = PdfColor::rgb8(0x88, 0x88, 0x88);
+        page.push_back(std::move(o));
+    };
+    for (int i = 0; i < (int)pages_.size(); i++) stamp(pages_[(size_t)i], i + 1);
+    if (!cur_.empty()) stamp(cur_, total);
+}
+
 bool PdfWriter::save(const std::string& path, std::string& err) {
     std::vector<std::vector<Op>> all = pages_;
     if (!cur_.empty()) all.push_back(cur_);
